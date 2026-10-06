@@ -1,0 +1,10 @@
+node_modules/
+__pycache__/
+.venv/
+venv/
+.env
+dist/
+*.pyc
+Claude.md
+docs
+.claude/
