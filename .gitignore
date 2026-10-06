@@ -5,6 +5,4 @@ venv/
 .env
 dist/
 *.pyc
-Claude.md
-docs
 .claude/
