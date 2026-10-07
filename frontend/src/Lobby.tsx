@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 
-const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
-const WS_URL = API_URL.replace(/^http/, 'ws') + '/ws'
+import { WS_URL } from './api.ts'
 
 // Efter dessa koder går det inte att gå med igen med samma kod/namn.
 const STALE_SESSION_CODES = ['unknown_lobby', 'game_full', 'game_started', 'invalid_nickname']

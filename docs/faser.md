@@ -34,10 +34,10 @@ Ingen databas: spelstate hålls i minnet (se CLAUDE.md). Ingen historik eller st
 - [ ] **4.5** Backend: Städa bort inaktiva och avslutade spel ur minnet efter en tid
   - Kom ihåg: stäng öppna sockets i `connections` för spelet som städas bort.
 
-## Fas 5 — Deployment
-- [ ] **5.1** Frontend → Vercel
-  - Kom ihåg: Vercel behöver en rewrite i `vercel.json` som skickar alla adresser till `index.html`. Annars får direktlänkar som `/lobby/ABC123` 404 där.
-- [ ] **5.2** Backend → Railway (en instans, ingen databas)
-- [ ] **5.3** Miljövariabler
-- [ ] **5.4** CORS + produktionskonfiguration, frontend ansluter med `wss://` till backendens adress
-  - Kom ihåg: CORS gäller inte WebSockets. Kontrollera `Origin`-headern mot `CORS_ORIGINS` i `/ws`.
+## Fas 5 — Deployment (en tjänst på Railway, görs före Fas 3)
+- [x] **5.1** Backend: API under `/api`, FastAPI serverar byggd frontend med fallback till `index.html`
+- [x] **5.2** Frontend: tom `VITE_API_URL` = samma adress som sidan (`wss://` i produktion), `localhost:8000` lokalt
+- [x] **5.3** Backend: kontrollera `Origin` på `/ws` (samma host, `X-Forwarded-Host` eller `CORS_ORIGINS`)
+- [x] **5.4** Dockerfile i två steg + `.dockerignore`, verifierat med `docker build` / `docker run`
+- [ ] **5.5** Railway: deploy från GitHub, domän, healthcheck `/api/health`, en replika, ingen sömn
+  - Kom ihåg: varje merge till `main` startar om tjänsten och raderar pågående spel.

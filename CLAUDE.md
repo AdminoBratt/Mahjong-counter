@@ -9,7 +9,9 @@ in sina poäng rond för rond. All matematik sker i backend. Realtid via WebSock
 - Backend: Python FastAPI + WebSockets (`backend/`)
 - Lagring: INGEN databas. Allt spelstate hålls i minnet i backend (se "Lagring i minnet").
 - Auth: gästinlogg via smeknamn, ingen e-post eller lösenord
-- Deployment: frontend på Vercel, backend på Railway (ingen databastjänst behövs)
+- Deployment: en enda Docker-tjänst på Railway (`Dockerfile` i roten). FastAPI serverar API:et under `/api`,
+  WebSocket på `/ws` och den byggda frontenden (fallback till `index.html`). Ingen Vercel, ingen databas.
+  Varje merge till `main` startar om tjänsten och raderar pågående spel.
 
 ## Projektstruktur
 ```
@@ -17,6 +19,7 @@ Wizardworks/
   frontend/          # React + TypeScript (Vite)
   backend/           # FastAPI
   docs/              # referensdokument (se nedan)
+  Dockerfile         # bygger frontend + backend till en image (Railway)
   CLAUDE.md
 ```
 
@@ -46,6 +49,7 @@ Om spelreglerna är oklara: fråga mig, gissa inte.
 ## Viktiga regler
 - All poängmatematik sker ENBART i backend. Frontend skickar rådata (vad spelaren valt), backend beräknar allt.
 - WebSocket-events broadcastas alltid till ALLA spelare i lobbyn.
+- API-rutter ligger under `/api` så att de inte krockar med frontendens sidor. `/ws` kontrollerar `Origin`.
 - Desktop (pc-webbläsare) är primärt. Mobilanpassning prioriteras inte, men undvik att göra layouten omöjlig att använda på smal skärm.
 - Poänglogiken (poäng, dubblingar, betalningar, vindrotation) ska ha enhetstester. Den är lätt att få fel.
 - Inga e-postadresser samlas in.
@@ -58,11 +62,15 @@ Om spelreglerna är oklara: fråga mig, gissa inte.
 - Backend (från `backend/`): `uvicorn app.main:app --reload`
 - Backend-tester (från `backend/`): `pytest`
 - Frontend (från `frontend/`): `npm run dev`
+- Produktionsimage lokalt (från roten): `docker build -t mahjong-tracker .` och
+  `docker run -e PORT=8080 -p 8080:8080 mahjong-tracker`, sedan http://localhost:8080
 
 ## Miljövariabler (backend)
 ```
 CORS_ORIGINS=http://localhost:5173
 ```
+Behövs bara lokalt (Vite på :5173 är en annan origin). I produktion är sida, API och `/ws` samma
+origin, så inga variabler behövs. `PORT` sätts av Railway.
 
 ## Referens (läs vid behov, inte hela tiden)
 - Faser och status: `docs/faser.md`
