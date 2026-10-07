@@ -1,6 +1,12 @@
 # WebSocket-events
 
-Alla SERVER → CLIENT-events broadcastas till ALLA spelare i lobbyn.
+Alla SERVER → CLIENT-events broadcastas till ALLA spelare i lobbyn, utom `error`.
+
+Anslutning: `ws://<backend>/ws`. Meddelanden är JSON med `type` plus fälten platt,
+t.ex. `{"type": "join_lobby", "lobby_code": "ABC123", "nickname": "Anna"}`.
+Första meddelandet måste vara `join_lobby` inom 10 sekunder. Samma smeknamn
+(skiftlägesokänsligt) = återanslutning till samma spelare. En ny socket för samma
+spelare ersätter den gamla, som stängs.
 
 ```
 CLIENT → SERVER:
@@ -10,8 +16,19 @@ CLIENT → SERVER:
   end_game          {}
 
 SERVER → CLIENT (broadcast till alla i lobby):
-  lobby_update      { players, winds, current_round }
+  lobby_update      { players: [{ id, nickname, seat_order, connected }] }
+                    # winds läggs till i 2.6, current_round i fas 3
   score_update      { round_scores, total_scores }
   round_complete    { payments, new_totals, next_round_winds }
   game_over         { final_standings, history }
+
+SERVER → CLIENT (bara till den som anslöt, sedan stängs socketen):
+  error             { code, message }
 ```
+
+`error.code`:
+- `invalid_message`: första meddelandet saknas (timeout), är inte JSON eller inte `join_lobby`
+- `invalid_nickname`: smeknamnet är tomt eller längre än 20 tecken
+- `unknown_lobby`: lobbykoden finns inte
+- `game_full`: fyra spelare finns redan och smeknamnet är nytt
+- `game_started`: spelet har startat och smeknamnet är nytt
