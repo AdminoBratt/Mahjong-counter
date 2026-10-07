@@ -36,7 +36,7 @@ Ingen databas: spelstate hålls i minnet (se CLAUDE.md). Ingen historik eller st
 
 ## Fas 5 — Deployment (en tjänst på Railway, görs före Fas 3)
 - [x] **5.1** Backend: API under `/api`, FastAPI serverar byggd frontend med fallback till `index.html`
-- [ ] **5.2** Frontend: tom `VITE_API_URL` = samma adress som sidan (`wss://` i produktion), `localhost:8000` lokalt
+- [x] **5.2** Frontend: tom `VITE_API_URL` = samma adress som sidan (`wss://` i produktion), `localhost:8000` lokalt
 - [ ] **5.3** Backend: kontrollera `Origin` på `/ws` (samma host, `X-Forwarded-Host` eller `CORS_ORIGINS`)
 - [ ] **5.4** Dockerfile i två steg + `.dockerignore`, verifierat med `docker build` / `docker run`
 - [ ] **5.5** Railway: deploy från GitHub, domän, healthcheck `/api/health`, en replika, ingen sömn
