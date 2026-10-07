@@ -161,3 +161,39 @@ def test_ws_errors(monkeypatch):
 
     monkeypatch.setattr(app.main, "JOIN_TIMEOUT", 0.1)
     assert _ws_error(client) == "invalid_message"
+
+
+def test_ws_choose_wind_broadcast_and_garbage_ignored():
+    client = TestClient(app.main.app)
+    code = client.post("/games").json()["lobby_code"]
+    for n in "ABCD":
+        client.post(f"/games/{code}/join", json={"nickname": n})
+    with client.websocket_connect("/ws") as a, client.websocket_connect("/ws") as b:
+        _join(a, code, "A")
+        _lobby(a)
+        _join(b, code, "B")
+        _lobby(a)
+        _, msg = _lobby(b)
+        assert msg["status"] == "waiting" and msg["players"][0]["wind"] is None
+
+        # Skräp stänger aldrig socketen och ger inget svar.
+        a.send_text("inte json")
+        a.send_json([1])
+        a.send_json("sträng")
+        a.send_json({"type": "choose_wind", "wind": "up"})
+        a.send_bytes(b"\x00binar")
+
+        a.send_json({"type": "choose_wind", "wind": "east"})
+        _, msg = _lobby(a)
+        assert b.receive_json() == msg
+        assert [p["wind"] for p in msg["players"]] == ["east", None, None, None]
+
+        b.send_json({"type": "choose_wind", "wind": "east"})  # tagen: nekas men synkas
+        _, msg = _lobby(b)
+        assert a.receive_json() == msg and msg["players"][1]["wind"] is None
+
+        game = app.main.store.get(code)
+        game.players[2].wind, game.players[3].wind = "west", "north"
+        b.send_json({"type": "choose_wind", "wind": "south"})
+        _, msg = _lobby(b)
+        assert a.receive_json() == msg and msg["status"] == "active"

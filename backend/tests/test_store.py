@@ -79,3 +79,29 @@ def test_join_active_game():
 def test_join_unknown_code():
     with pytest.raises(KeyError):
         GameStore().join("NOPE00", "A")
+
+
+def test_choose_wind_needs_four_players():
+    store = GameStore()
+    game = _game_with(store, "A", "B", "C")
+    assert store.choose_wind(game, game.players[0], "east") is False
+    assert game.players[0].wind is None
+
+
+def test_choose_wind_switch_taken_and_start():
+    store = GameStore()
+    game = _game_with(store, "A", "B", "C", "D")
+    a, b, c, d = game.players
+    assert store.choose_wind(game, a, "east")
+    assert store.choose_wind(game, a, "south") and a.wind == "south"  # byte
+    assert store.choose_wind(game, a, "south")  # samma igen är ok
+    assert store.choose_wind(game, b, "south") is False and b.wind is None  # tagen
+    for p, w in ((b, "east"), (c, "west")):
+        assert store.choose_wind(game, p, w)
+    assert game.status == "waiting"
+    assert store.choose_wind(game, d, "north")
+    assert game.status == "active"
+    assert store.choose_wind(game, a, "east") is False and a.wind == "south"  # låst
+    with pytest.raises(JoinError) as e:
+        store.join(game.lobby_code, "E")
+    assert e.value.code == "game_started"

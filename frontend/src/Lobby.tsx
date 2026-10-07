@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 
 const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
@@ -7,8 +7,17 @@ const WS_URL = API_URL.replace(/^http/, 'ws') + '/ws'
 // Efter dessa koder går det inte att gå med igen med samma kod/namn.
 const STALE_SESSION_CODES = ['unknown_lobby', 'game_full', 'game_started', 'invalid_nickname']
 
-type Player = { id: string; nickname: string; seat_order: number; connected: boolean }
+type Wind = 'east' | 'south' | 'west' | 'north'
+type Player = { id: string; nickname: string; seat_order: number; connected: boolean; wind: Wind | null }
 type Status = 'connecting' | 'open' | 'closed' | { error: string }
+
+const WINDS: [Wind, string][] = [
+  ['east', 'Öst'],
+  ['south', 'Syd'],
+  ['west', 'Väst'],
+  ['north', 'Nord'],
+]
+const WIND_NAME = Object.fromEntries(WINDS) as Record<Wind, string>
 
 export default function Lobby() {
   const { code = '' } = useParams()
@@ -17,6 +26,8 @@ export default function Lobby() {
     sessionStorage.getItem('lobby_code') === code ? sessionStorage.getItem('nickname') : null,
   )
   const [players, setPlayers] = useState<Player[]>([])
+  const [gameStatus, setGameStatus] = useState<'waiting' | 'active' | 'finished'>('waiting')
+  const wsRef = useRef<WebSocket | null>(null)
   const [status, setStatus] = useState<Status>('connecting')
   const [attempt, setAttempt] = useState(0)
   const [copied, setCopied] = useState<'ok' | 'fail' | null>(null)
@@ -26,12 +37,14 @@ export default function Lobby() {
     let current = true // false efter cleanup, så gamla sockets (t.ex. StrictMode) ignoreras
     let gotError = false
     const ws = new WebSocket(WS_URL)
+    wsRef.current = ws
     ws.onopen = () => ws.send(JSON.stringify({ type: 'join_lobby', lobby_code: code, nickname }))
     ws.onmessage = (e) => {
       if (!current) return
       const msg = JSON.parse(e.data)
       if (msg.type === 'lobby_update') {
         setPlayers(msg.players)
+        setGameStatus(msg.status)
         setStatus('open')
       } else if (msg.type === 'error') {
         gotError = true
@@ -50,6 +63,10 @@ export default function Lobby() {
       ws.close()
     }
   }, [code, nickname, attempt])
+
+  function chooseWind(wind: Wind) {
+    wsRef.current?.send(JSON.stringify({ type: 'choose_wind', wind }))
+  }
 
   function reconnect() {
     setStatus('connecting')
@@ -77,6 +94,9 @@ export default function Lobby() {
 
   const seats = [1, 2, 3, 4].map((i) => players.find((p) => p.seat_order === i))
   const missing = 4 - players.length
+  const isMe = (p: Player) => p.nickname.toLowerCase() === nickname.toLowerCase()
+  const chosen = players.filter((p) => p.wind).length
+  const started = gameStatus !== 'waiting'
 
   return (
     <div className="lobby">
@@ -97,8 +117,13 @@ export default function Lobby() {
               <>
                 <span>
                   {p.nickname}
-                  {p.nickname.toLowerCase() === nickname.toLowerCase() && <span className="muted"> (du)</span>}
+                  {isMe(p) && <span className="muted"> (du)</span>}
                 </span>
+                {missing === 0 && (
+                  <span className={p.wind ? 'seat-wind' : 'seat-wind muted'}>
+                    {p.wind ? WIND_NAME[p.wind] : 'Väljer vind…'}
+                  </span>
+                )}
                 <span className={p.connected ? 'online' : 'muted'}>
                   {p.connected ? 'Ansluten' : 'Frånkopplad'}
                 </span>
@@ -110,12 +135,40 @@ export default function Lobby() {
         ))}
       </ol>
 
+      {missing === 0 && (
+        <fieldset className="winds" disabled={started || status !== 'open'}>
+          <legend>{started ? 'Startvindar' : 'Välj din startvind'}</legend>
+          {WINDS.map(([wind, name]) => {
+            const owner = players.find((p) => p.wind === wind)
+            const mine = owner !== undefined && isMe(owner)
+            return (
+              <label key={wind} className={mine ? 'wind mine' : 'wind'}>
+                <input
+                  type="radio"
+                  name="wind"
+                  value={wind}
+                  checked={mine}
+                  disabled={owner !== undefined && !mine}
+                  onChange={() => chooseWind(wind)}
+                />
+                <span>
+                  {name}
+                  {owner && <span className="muted">{mine ? 'Din vind' : owner.nickname}</span>}
+                </span>
+              </label>
+            )
+          })}
+        </fieldset>
+      )}
+
       <p role="status" aria-atomic="true">
         {status === 'connecting' && 'Ansluter…'}
         {status === 'open' &&
           (missing > 0
             ? `${players.length} av 4 spelare. Väntar på ${missing} till.`
-            : 'Alla fyra är här.')}
+            : started
+              ? 'Alla vindar valda. Spelet startar.'
+              : `Välj startvind. ${chosen} av 4 har valt.`)}
       </p>
 
       {status === 'closed' && (

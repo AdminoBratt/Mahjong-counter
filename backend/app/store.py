@@ -13,6 +13,7 @@ def _now() -> datetime:
 
 
 MAX_PLAYERS = 4
+Wind = Literal["east", "south", "west", "north"]
 
 
 @dataclass
@@ -21,6 +22,7 @@ class GamePlayer:
     seat_order: int  # 1-4, i den ordning spelarna gick med
     id: uuid.UUID = field(default_factory=uuid.uuid4)
     connected: bool = False  # har en öppen WebSocket just nu
+    wind: Wind | None = None  # startvind, None tills vald
 
 
 @dataclass
@@ -74,6 +76,22 @@ class GameStore:
         player = GamePlayer(nickname=nickname, seat_order=len(game.players) + 1)
         game.players.append(player)
         return game, player, False
+
+    def choose_wind(self, game: Game, player: GamePlayer, wind: Wind) -> bool:
+        """Sätter spelarens startvind. False (ingen ändring) om valet inte är tillåtet.
+
+        Spelet startar när alla fyra har valt; vindarna är unika, så alla fyra täcks.
+        Synkron av samma skäl som join(): två spelare kan inte få samma vind.
+        """
+        if game.status != "waiting" or len(game.players) < MAX_PLAYERS:
+            return False
+        if any(p.wind == wind for p in game.players if p is not player):
+            return False
+        player.wind = wind
+        game.last_activity = _now()
+        if all(p.wind for p in game.players):
+            game.status = "active"
+        return True
 
     def add(self, game: Game) -> None:
         self._games[game.lobby_code] = game
