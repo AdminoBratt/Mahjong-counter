@@ -1,17 +1,16 @@
 # Faser och status
 
 Följ ordningen. Ett steg i taget. Bocka av `[x]` när steget är klart och verifierat.
+Ingen databas: spelstate hålls i minnet (se CLAUDE.md). Ingen historik eller statistik.
 
 ## Fas 1 — Fundament
-- [ ] **1.1** Docker Compose med Postgres
-- [ ] **1.2** FastAPI-skelett med databasanslutning (SQLAlchemy + Alembic)
-- [ ] **1.3** Databasmigrationer (alla tabeller, se `datamodell.md`)
-- [ ] **1.4** React + Vite + TypeScript-skelett med routing
+- [ ] **1.1** FastAPI-skelett (struktur, health-endpoint, CORS, `GameStore` i minnet, pytest)
+- [ ] **1.2** React + Vite + TypeScript-skelett med routing
 
 ## Fas 2 — Lobby
-- [ ] **2.1** API: Skapa spel (generera lobby-kod)
+- [ ] **2.1** API: Skapa spel (generera lobby-kod, lagras i `GameStore`)
 - [ ] **2.2** API: Gå med i spel via kod + smeknamn
-- [ ] **2.3** WebSocket: anslutning + `join_lobby`-event
+- [ ] **2.3** WebSocket: anslutning + `join_lobby`-event, inklusive återanslutning med kod + smeknamn
 - [ ] **2.4** UI: Startsida (skapa spel / gå med i spel)
 - [ ] **2.5** UI: Lobby-vy (visar anslutna spelare, väntar på 4 st)
 - [ ] **2.6** UI: Vindval (rond 1, varje spelare väljer sin startvind)
@@ -31,15 +30,10 @@ Följ ordningen. Ett steg i taget. Bocka av `[x]` när steget är klart och veri
 - [ ] **4.2** UI: Poängkurva/graf (Chart.js eller Recharts)
 - [ ] **4.3** WebSocket: live-uppdateringar till alla spelare
 - [ ] **4.4** UI: Avsluta spel-knapp + slutresultat
+- [ ] **4.5** Backend: Städa bort inaktiva och avslutade spel ur minnet efter en tid
 
-## Fas 5 — Historik & Statistik
-- [ ] **5.1** API: Hämta spelhistorik per smeknamn
-- [ ] **5.2** API: Statistik (snittpoäng, vinster, etc.)
-- [ ] **5.3** UI: Historikvy
-- [ ] **5.4** UI: Statistikvy per spelare
-
-## Fas 6 — Deployment
-- [ ] **6.1** Frontend → Vercel
-- [ ] **6.2** Backend + DB → Railway
-- [ ] **6.3** Miljövariabler + secrets
-- [ ] **6.4** CORS + produktionskonfiguration
+## Fas 5 — Deployment
+- [ ] **5.1** Frontend → Vercel
+- [ ] **5.2** Backend → Railway (en instans, ingen databas)
+- [ ] **5.3** Miljövariabler
+- [ ] **5.4** CORS + produktionskonfiguration, frontend ansluter med `wss://` till backendens adress

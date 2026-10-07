@@ -1,51 +1,58 @@
-# Datamodell
+# Datamodell (i minnet)
+
+Ingen databas. Modellerna är vanliga Python-klasser (dataclasses eller Pydantic) i backend.
+Alla spel ligger i en `GameStore` (t.ex. `dict[str, Game]` med lobby-kod som nyckel).
+Allt försvinner när backend startar om. Se "Lagring i minnet" i CLAUDE.md.
+
+Skissen nedan visar fält och relationer. Claude väljer exakt implementation, men håll
+lagringen bakom ett litet gränssnitt (`GameStore`).
 
 ## Player
-```sql
-id          UUID PRIMARY KEY
-nickname    TEXT NOT NULL
-created_at  TIMESTAMP
+```
+id          UUID
+nickname    str
 ```
 
 ## Game
-```sql
-id            UUID PRIMARY KEY
-lobby_code    CHAR(6) UNIQUE NOT NULL  -- t.ex. "ABC123"
-status        ENUM('waiting', 'active', 'finished')
-created_at    TIMESTAMP
-current_round INT DEFAULT 1
-round_wind    ENUM('east','south','west','north') DEFAULT 'east'
+```
+id            UUID
+lobby_code    str (6 tecken, unik, t.ex. "ABC123")
+status        'waiting' | 'active' | 'finished'
+created_at    datetime
+last_activity datetime   # används för att städa inaktiva spel
+current_round int = 1
+round_wind    'east' | 'south' | 'west' | 'north' = 'east'
+players       list[GamePlayer]
+rounds        list[Round]
 ```
 
 ## GamePlayer
-```sql
-id          UUID PRIMARY KEY
-game_id     UUID REFERENCES Game
-player_id   UUID REFERENCES Player
-wind        ENUM('east','south','west','north')
-total_score INT DEFAULT 0
-seat_order  INT  -- 1-4, avgör turordning
+```
+id          UUID
+player      Player
+wind        'east' | 'south' | 'west' | 'north'
+total_score int = 0
+seat_order  int  # 1-4, avgör turordning
+connected   bool # för återanslutning
 ```
 
 ## Round
-```sql
-id           UUID PRIMARY KEY
-game_id      UUID REFERENCES Game
-round_number INT
-is_draw      BOOLEAN DEFAULT FALSE  -- oavgjort
-winner_id    UUID REFERENCES GamePlayer NULL
-round_wind   ENUM('east','south','west','north')
+```
+id           UUID
+round_number int
+is_draw      bool = False   # oavgjort
+winner_id    UUID | None    # GamePlayer.id
+round_wind   'east' | 'south' | 'west' | 'north'
+scores       list[RoundScore]
 ```
 
 ## RoundScore
-```sql
-id              UUID PRIMARY KEY
-round_id        UUID REFERENCES Round
-game_player_id  UUID REFERENCES GamePlayer
-base_points     INT
-doublings       INT
-final_points    INT   -- base_points × 2^doublings
-payment_delta   INT   -- netto efter betalningar (kan vara negativt)
-did_mahjong     BOOLEAN DEFAULT FALSE
-score_input     JSONB  -- rådata från spelarens inmatning
+```
+game_player_id  UUID
+base_points     int
+doublings       int
+final_points    int   # base_points × 2^doublings
+payment_delta   int   # netto efter betalningar (kan vara negativt)
+did_mahjong     bool = False
+score_input     dict  # rådata från spelarens inmatning
 ```
