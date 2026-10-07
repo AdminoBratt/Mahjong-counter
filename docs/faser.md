@@ -39,5 +39,5 @@ Ingen databas: spelstate hålls i minnet (se CLAUDE.md). Ingen historik eller st
 - [x] **5.2** Frontend: tom `VITE_API_URL` = samma adress som sidan (`wss://` i produktion), `localhost:8000` lokalt
 - [x] **5.3** Backend: kontrollera `Origin` på `/ws` (samma host, `X-Forwarded-Host` eller `CORS_ORIGINS`)
 - [x] **5.4** Dockerfile i två steg + `.dockerignore`, verifierat med `docker build` / `docker run`
-- [ ] **5.5** Railway: deploy från GitHub, domän, healthcheck `/api/health`, en replika, ingen sömn
+- [x] **5.5** Railway: deploy från GitHub, domän, healthcheck `/api/health`, en replika, ingen sömn
   - Kom ihåg: varje merge till `main` startar om tjänsten och raderar pågående spel.
