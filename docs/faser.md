@@ -5,7 +5,7 @@ Ingen databas: spelstate hålls i minnet (se CLAUDE.md). Ingen historik eller st
 
 ## Fas 1 — Fundament
 - [x] **1.1** FastAPI-skelett (struktur, health-endpoint, CORS, `GameStore` i minnet, pytest)
-- [ ] **1.2** React + Vite + TypeScript-skelett med routing
+- [x] **1.2** React + Vite + TypeScript-skelett med routing
 
 ## Fas 2 — Lobby
 - [ ] **2.1** API: Skapa spel (generera lobby-kod, lagras i `GameStore`)
