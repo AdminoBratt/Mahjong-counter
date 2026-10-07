@@ -5,7 +5,7 @@ Ingen databas: spelstate hålls i minnet (se CLAUDE.md). Ingen historik eller st
 
 ## Fas 1 — Fundament
 - [x] **1.1** FastAPI-skelett (struktur, health-endpoint, CORS, `GameStore` i minnet, pytest)
-- [ ] **1.2** React + Vite + TypeScript-skelett med routing
+- [x] **1.2** React + Vite + TypeScript-skelett med routing
 
 ## Fas 2 — Lobby
 - [ ] **2.1** API: Skapa spel (generera lobby-kod, lagras i `GameStore`)
@@ -34,6 +34,7 @@ Ingen databas: spelstate hålls i minnet (se CLAUDE.md). Ingen historik eller st
 
 ## Fas 5 — Deployment
 - [ ] **5.1** Frontend → Vercel
+  - Kom ihåg: Vercel behöver en rewrite i `vercel.json` som skickar alla adresser till `index.html`. Annars får direktlänkar som `/lobby/ABC123` 404 där.
 - [ ] **5.2** Backend → Railway (en instans, ingen databas)
 - [ ] **5.3** Miljövariabler
 - [ ] **5.4** CORS + produktionskonfiguration, frontend ansluter med `wss://` till backendens adress

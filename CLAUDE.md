@@ -50,8 +50,8 @@ Om spelreglerna är oklara: fråga mig, gissa inte.
 - Poänglogiken (poäng, dubblingar, betalningar, vindrotation) ska ha enhetstester. Den är lätt att få fel.
 - Inga e-postadresser samlas in.
 - Hemligheter ska aldrig committas. Använd `.env`.
-- UI-steg: använd `taste-skill`, men följ först designvalen under "Design" här i filen.
-  Välj inga nya paletter eller typsnitt på egen hand.
+- UI-steg: kör ui-ux-pro-max först, andra designskills får komplettera men aldrig ersätta den.
+  Följ designvalen under "Design" här i filen. Välj inga nya paletter eller typsnitt på egen hand.
 - Skriv bara den kod ett steg kräver (ponytail). Poängmatematiken i backend ska ändå ha tester.
 
 ## Användbara kommandon
@@ -74,9 +74,23 @@ Läs `docs/spelregler.md` innan du rör poängberäkning, betalningar eller vind
 Läs `docs/datamodell.md` innan du rör spelmodellerna eller `GameStore`.
 
 ## Design
-Fylls i när första UI-steget är klart. Följ alltid dessa val i alla UI-steg.
-- Stil, färgpalett och typsnitt: (ännu inte valda)
-- Färger och typsnitt definieras som CSS-variabler i `frontend/src/styles/`.
+Följ alltid dessa val i alla UI-steg.
+- Stil: Minimalism/Swiss + financial-dashboard-mönster, tema "jadefilt + röd drake". Ett enda mörkt tema, inget ljust läge.
+- Typsnitt: Geist för UI-text, Geist Mono för poäng, lobbykod och betalningar. Självhostade via `@fontsource-variable`.
+  Brödtext 16px / 1.5. `tabular-nums` globalt. Tusentalsavgränsare enligt `sv-SE`.
+- Färger (kontrast mot `--bg` / `--surface` / `--felt`, verifierat med skript):
+  - `--bg #0e1512`, `--surface #16201b`, `--felt #173a2c` (poängtavla, spelbordsytor)
+  - `--text #e8eee9` 15.7 / 14.2 / 10.6, `--text-muted #9aaaa1` 7.6 / 6.9 / 5.2
+  - `--positive #5cb88a` 7.7 / 6.9 / 5.2, `--negative #f07a6a` 6.8 / 6.1 / 4.6
+  - `--accent #e0594a` (enda accenten: primärknappar, länkar, fokusring) 5.0 / 4.5 / 3.4. Text i accent aldrig på `--felt`.
+  - `--on-accent #0e1512` (text på accentknappar) 5.0
+  - `--border #2b3a32` (dekorativa linjer), `--border-input #66796f` (fältramar) 4.0 / 3.6
+- Poäng visas alltid med tecken (+/−), inte bara med färg.
+- Form: 8px hörnradie överallt. Kontroller minst 44px höga. Fokus: 2px ring i `--accent`, offset 2px, tas aldrig bort.
+- Etiketter ovanför fält, fel under fältet, aldrig placeholder som etikett.
+- Rörelse: bara hover/tryck (150–200ms). Avstängt vid `prefers-reduced-motion`. Inga animationsbibliotek, ingen Tailwind.
+- Ikoner: inte valt ännu, välj när första ikonen behövs.
+- Färger och typsnitt definieras som CSS-variabler i `frontend/src/styles/theme.css`.
   Hårdkoda aldrig färger eller typsnitt i komponenter, använd variablerna.
 
 ## Känd teknisk skuld
