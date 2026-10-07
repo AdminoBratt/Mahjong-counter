@@ -7,7 +7,7 @@ from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, StringConstraints, ValidationError
 
-from app.store import Game, GameStore, JoinError
+from app.store import Game, GameStore, JoinError, Wind
 
 app = FastAPI(title="Mahjong Score Tracker")
 store = GameStore()
@@ -73,6 +73,11 @@ class JoinLobby(BaseModel):
     nickname: Nickname
 
 
+class ChooseWind(BaseModel):
+    type: Literal["choose_wind"]
+    wind: Wind
+
+
 async def _error(ws: WebSocket, code: str, message: str) -> None:
     await ws.send_json({"type": "error", "code": code, "message": message})
     await ws.close()
@@ -81,12 +86,14 @@ async def _error(ws: WebSocket, code: str, message: str) -> None:
 async def _broadcast_lobby(game: Game) -> None:
     msg = {
         "type": "lobby_update",
+        "status": game.status,
         "players": [
             {
                 "id": str(p.id),
                 "nickname": p.nickname,
                 "seat_order": p.seat_order,
                 "connected": p.connected,
+                "wind": p.wind,
             }
             for p in game.players
         ],
@@ -135,7 +142,15 @@ async def lobby_socket(ws: WebSocket) -> None:
 
     try:
         while True:
-            await ws.receive_text()  # övriga events kommer i senare steg
+            try:
+                msg = ChooseWind.model_validate(await ws.receive_json())
+            # Skräp ignoreras: ogiltig JSON/ValidationError (ValueError),
+            # binär ram (KeyError/TypeError i Starlettes receive_json).
+            except (ValueError, KeyError, TypeError):
+                continue
+            store.choose_wind(game, player, msg.wind)
+            # Även vid nekat val, så att den som förlorade en kapplöpning synkas om.
+            await _broadcast_lobby(game)
     except (WebSocketDisconnect, RuntimeError):
         pass
     if lobby.get(player.id) is ws:

@@ -26,7 +26,7 @@ rounds        list[Round]
 id          UUID
 nickname    str  # unik per spel, jämförs med casefold(); samma namn = återanslutning
 seat_order  int  # 1-4, i den ordning spelarna gick med
-wind        'east' | 'south' | 'west' | 'north'   # läggs till i 2.6
+wind        'east' | 'south' | 'west' | 'north' | None  # startvind, None tills vald (2.6)
 total_score int = 0                              # läggs till i fas 3
 connected   bool                                 # för återanslutning, läggs till i 2.3
 ```

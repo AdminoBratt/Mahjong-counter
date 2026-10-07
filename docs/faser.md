@@ -14,7 +14,7 @@ Ingen databas: spelstate hålls i minnet (se CLAUDE.md). Ingen historik eller st
 - [x] **2.4** UI: Startsida (skapa spel / gå med i spel)
 - [x] **2.5** UI: Lobby-vy (visar anslutna spelare, väntar på 4 st)
   - Kom ihåg: härled /ws-adressen från VITE_API_URL (http→ws, https→wss).
-- [ ] **2.6** UI: Vindval (rond 1, varje spelare väljer sin startvind)
+- [x] **2.6** UI: Vindval (rond 1, varje spelare väljer sin startvind)
 
 ## Fas 3 — Poänginmatning
 - [ ] **3.1** Backend: Poängberäkningsmodul (baspoäng + dubblingar)
