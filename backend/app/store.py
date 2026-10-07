@@ -1,7 +1,11 @@
+import secrets
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Literal
+
+# Utan 0/O/1/I så att koden går att skriva av utan förväxling.
+CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 
 
 def _now() -> datetime:
@@ -23,6 +27,17 @@ class GameStore:
 
     def __init__(self) -> None:
         self._games: dict[str, Game] = {}
+
+    def create(self) -> Game:
+        # Ingen await här: anropat från en async-route körs detta atomiskt
+        # på event-loopen, så två samtidiga anrop kan inte få samma kod.
+        while True:
+            code = "".join(secrets.choice(CODE_ALPHABET) for _ in range(6))
+            if code not in self._games:
+                break
+        game = Game(lobby_code=code)
+        self.add(game)
+        return game
 
     def add(self, game: Game) -> None:
         self._games[game.lobby_code] = game

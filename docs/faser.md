@@ -8,7 +8,7 @@ Ingen databas: spelstate hålls i minnet (se CLAUDE.md). Ingen historik eller st
 - [x] **1.2** React + Vite + TypeScript-skelett med routing
 
 ## Fas 2 — Lobby
-- [ ] **2.1** API: Skapa spel (generera lobby-kod, lagras i `GameStore`)
+- [x] **2.1** API: Skapa spel (generera lobby-kod, lagras i `GameStore`)
 - [ ] **2.2** API: Gå med i spel via kod + smeknamn
 - [ ] **2.3** WebSocket: anslutning + `join_lobby`-event, inklusive återanslutning med kod + smeknamn
 - [ ] **2.4** UI: Startsida (skapa spel / gå med i spel)

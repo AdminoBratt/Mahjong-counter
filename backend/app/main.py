@@ -24,3 +24,8 @@ app.add_middleware(
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@app.post("/games", status_code=201)
+async def create_game() -> dict[str, str]:
+    return {"lobby_code": store.create().lobby_code}
