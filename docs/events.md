@@ -2,7 +2,7 @@
 
 Alla SERVER → CLIENT-events broadcastas till ALLA spelare i lobbyn, utom `error`.
 
-Anslutning: `ws://<backend>/ws`. Meddelanden är JSON med `type` plus fälten platt,
+Anslutning: `ws(s)://<sidans adress>/ws`. Meddelanden är JSON med `type` plus fälten platt,
 t.ex. `{"type": "join_lobby", "lobby_code": "ABC123", "nickname": "Anna"}`.
 Första meddelandet måste vara `join_lobby` inom 10 sekunder. Samma smeknamn
 (skiftlägesokänsligt) = återanslutning till samma spelare. En ny socket för samma

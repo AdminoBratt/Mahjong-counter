@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
-const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
+import { API_URL } from './api.ts'
 
 type Errors = { nickname?: string; code?: string; create?: string; join?: string }
 
@@ -31,11 +31,11 @@ export default function Start() {
     try {
       let lobbyCode = code
       if (kind === 'create') {
-        const res = await fetch(`${API_URL}/games`, { method: 'POST' })
+        const res = await fetch(`${API_URL}/api/games`, { method: 'POST' })
         if (!res.ok) throw new Error()
         lobbyCode = (await res.json()).lobby_code
       }
-      const res = await fetch(`${API_URL}/games/${encodeURIComponent(lobbyCode)}/join`, {
+      const res = await fetch(`${API_URL}/api/games/${encodeURIComponent(lobbyCode)}/join`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ nickname: name }),
