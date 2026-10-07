@@ -7,12 +7,6 @@ Allt försvinner när backend startar om. Se "Lagring i minnet" i CLAUDE.md.
 Skissen nedan visar fält och relationer. Claude väljer exakt implementation, men håll
 lagringen bakom ett litet gränssnitt (`GameStore`).
 
-## Player
-```
-id          UUID
-nickname    str
-```
-
 ## Game
 ```
 id            UUID
@@ -27,13 +21,14 @@ rounds        list[Round]
 ```
 
 ## GamePlayer
+`Player` och `GamePlayer` är sammanslagna: en spelare finns bara i ett spel.
 ```
 id          UUID
-player      Player
-wind        'east' | 'south' | 'west' | 'north'
-total_score int = 0
-seat_order  int  # 1-4, avgör turordning
-connected   bool # för återanslutning
+nickname    str  # unik per spel, jämförs med casefold(); samma namn = återanslutning
+seat_order  int  # 1-4, i den ordning spelarna gick med
+wind        'east' | 'south' | 'west' | 'north'   # läggs till i 2.6
+total_score int = 0                              # läggs till i fas 3
+connected   bool                                 # för återanslutning, läggs till i 2.3
 ```
 
 ## Round
