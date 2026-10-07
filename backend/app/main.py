@@ -1,11 +1,14 @@
 import asyncio
 import os
 import uuid
+from pathlib import Path
 from typing import Annotated, Literal
 
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, StringConstraints, ValidationError
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.store import Game, GameStore, JoinError, Wind
 
@@ -28,12 +31,12 @@ app.add_middleware(
 )
 
 
-@app.get("/health")
+@app.get("/api/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
-@app.post("/games", status_code=201)
+@app.post("/api/games", status_code=201)
 async def create_game() -> dict[str, str]:
     return {"lobby_code": store.create().lobby_code}
 
@@ -48,7 +51,7 @@ class JoinRequest(BaseModel):
     nickname: Nickname
 
 
-@app.post("/games/{lobby_code}/join")
+@app.post("/api/games/{lobby_code}/join")
 async def join_game(lobby_code: str, body: JoinRequest) -> dict:
     try:
         game, player, rejoined = store.join(lobby_code, body.nickname)
@@ -159,3 +162,22 @@ async def lobby_socket(ws: WebSocket) -> None:
         if not lobby:
             connections.pop(game.lobby_code, None)
         await _broadcast_lobby(game)
+
+
+class SPAStaticFiles(StaticFiles):
+    """Okända sidor (t.ex. /lobby/ABC123) får index.html, men okända /api-adresser ger 404."""
+
+    async def get_response(self, path, scope):
+        try:
+            return await super().get_response(path, scope)
+        except StarletteHTTPException as e:
+            # scope["path"], inte path: path är OS-normaliserad (backslash på Windows).
+            if e.status_code != 404 or scope["path"].startswith("/api/"):
+                raise
+            return await super().get_response("index.html", scope)
+
+
+# Den byggda frontenden kopieras hit i Docker-imagen. Saknas lokalt, då körs Vite separat.
+STATIC_DIR = Path(__file__).parent.parent / "static"
+if STATIC_DIR.is_dir():
+    app.mount("/", SPAStaticFiles(directory=STATIC_DIR, html=True))

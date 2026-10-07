@@ -2,6 +2,7 @@ import importlib
 import re
 
 import pytest
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 
@@ -9,7 +10,7 @@ import app.main
 
 
 def test_health():
-    r = TestClient(app.main.app).get("/health")
+    r = TestClient(app.main.app).get("/api/health")
     assert r.status_code == 200
     assert r.json() == {"status": "ok"}
 
@@ -18,16 +19,32 @@ def test_cors_multiple_origins(monkeypatch):
     monkeypatch.setenv("CORS_ORIGINS", "http://a.test, http://b.test")
     client = TestClient(importlib.reload(app.main).app)
     for origin in ("http://a.test", "http://b.test"):
-        r = client.get("/health", headers={"Origin": origin})
+        r = client.get("/api/health", headers={"Origin": origin})
         assert r.headers["access-control-allow-origin"] == origin
-    r = client.get("/health", headers={"Origin": "http://evil.test"})
+    r = client.get("/api/health", headers={"Origin": "http://evil.test"})
     assert "access-control-allow-origin" not in r.headers
     monkeypatch.undo()
     importlib.reload(app.main)  # återställ modulen för andra tester
 
 
+def test_spa_fallback(tmp_path):
+    static = tmp_path / "static"
+    static.mkdir()
+    (static / "index.html").write_text("<html>spa</html>")
+    (static / "favicon.svg").write_text("<svg/>")
+    (tmp_path / "secret.txt").write_text("hemligt")
+    spa = FastAPI()
+    spa.mount("/", app.main.SPAStaticFiles(directory=static, html=True))
+    client = TestClient(spa)
+    assert client.get("/").text == "<html>spa</html>"
+    assert client.get("/lobby/ABC123").text == "<html>spa</html>"
+    assert client.get("/favicon.svg").text == "<svg/>"
+    assert client.get("/api/finns-inte").status_code == 404
+    assert "hemligt" not in client.get("/%2e%2e/secret.txt").text
+
+
 def test_create_game():
-    r = TestClient(app.main.app).post("/games")
+    r = TestClient(app.main.app).post("/api/games")
     assert r.status_code == 201
     code = r.json()["lobby_code"]
     assert re.fullmatch(r"[A-HJ-NP-Z2-9]{6}", code)
@@ -36,28 +53,28 @@ def test_create_game():
 
 def test_join_game():
     client = TestClient(app.main.app)
-    code = client.post("/games").json()["lobby_code"]
-    r = client.post(f"/games/{code.lower()}/join", json={"nickname": "  Anna "})
+    code = client.post("/api/games").json()["lobby_code"]
+    r = client.post(f"/api/games/{code.lower()}/join", json={"nickname": "  Anna "})
     assert r.status_code == 200
     body = r.json()
     assert body["lobby_code"] == code
     assert body["rejoined"] is False
     assert body["players"] == [{"id": body["player_id"], "nickname": "Anna", "seat_order": 1}]
 
-    r = client.post(f"/games/{code}/join", json={"nickname": "anna"})
+    r = client.post(f"/api/games/{code}/join", json={"nickname": "anna"})
     assert r.json()["rejoined"] is True
     assert r.json()["player_id"] == body["player_id"]
 
 
 def test_join_errors():
     client = TestClient(app.main.app)
-    code = client.post("/games").json()["lobby_code"]
-    assert client.post("/games/NOPE00/join", json={"nickname": "A"}).status_code == 404
+    code = client.post("/api/games").json()["lobby_code"]
+    assert client.post("/api/games/NOPE00/join", json={"nickname": "A"}).status_code == 404
     for bad in ("", "   ", "x" * 21):
-        assert client.post(f"/games/{code}/join", json={"nickname": bad}).status_code == 422
+        assert client.post(f"/api/games/{code}/join", json={"nickname": bad}).status_code == 422
     for n in "ABCD":
-        client.post(f"/games/{code}/join", json={"nickname": n})
-    r = client.post(f"/games/{code}/join", json={"nickname": "E"})
+        client.post(f"/api/games/{code}/join", json={"nickname": n})
+    r = client.post(f"/api/games/{code}/join", json={"nickname": "E"})
     assert r.status_code == 409
 
 
@@ -75,7 +92,7 @@ def _lobby(ws):
 
 def test_ws_join_disconnect_rejoin():
     client = TestClient(app.main.app)
-    code = client.post("/games").json()["lobby_code"]
+    code = client.post("/api/games").json()["lobby_code"]
     with client.websocket_connect("/ws") as a:
         _join(a, code, "Anna")
         assert _lobby(a)[0] == [("Anna", True)]
@@ -100,7 +117,7 @@ def test_ws_join_disconnect_rejoin():
 
 def test_ws_same_player_new_socket_replaces_old():
     client = TestClient(app.main.app)
-    code = client.post("/games").json()["lobby_code"]
+    code = client.post("/api/games").json()["lobby_code"]
     with client.websocket_connect("/ws") as old:
         _join(old, code, "Anna")
         assert _lobby(old)[0] == [("Anna", True)]
@@ -116,7 +133,7 @@ def test_ws_same_player_new_socket_replaces_old():
 
 def test_ws_old_socket_close_keeps_player_connected():
     client = TestClient(app.main.app)
-    code = client.post("/games").json()["lobby_code"]
+    code = client.post("/api/games").json()["lobby_code"]
     with client.websocket_connect("/ws") as new:
         with client.websocket_connect("/ws") as old:
             _join(old, code, "Anna")
@@ -141,7 +158,7 @@ def _ws_error(client, payload=None, text=None):
 
 def test_ws_errors(monkeypatch):
     client = TestClient(app.main.app)
-    code = client.post("/games").json()["lobby_code"]
+    code = client.post("/api/games").json()["lobby_code"]
     join = {"type": "join_lobby", "lobby_code": code}
     assert _ws_error(client, text="inte json") == "invalid_message"
     assert _ws_error(client, payload=[1]) == "invalid_message"
@@ -151,11 +168,11 @@ def test_ws_errors(monkeypatch):
     assert _ws_error(client, payload={**join, "lobby_code": "NOPE00", "nickname": "A"}) == "unknown_lobby"
 
     for n in "ABCD":
-        client.post(f"/games/{code}/join", json={"nickname": n})
+        client.post(f"/api/games/{code}/join", json={"nickname": n})
     assert _ws_error(client, payload={**join, "nickname": "E"}) == "game_full"
 
-    started = client.post("/games").json()["lobby_code"]
-    client.post(f"/games/{started}/join", json={"nickname": "A"})
+    started = client.post("/api/games").json()["lobby_code"]
+    client.post(f"/api/games/{started}/join", json={"nickname": "A"})
     app.main.store.get(started).status = "active"
     assert _ws_error(client, payload={**join, "lobby_code": started, "nickname": "B"}) == "game_started"
 
@@ -165,9 +182,9 @@ def test_ws_errors(monkeypatch):
 
 def test_ws_choose_wind_broadcast_and_garbage_ignored():
     client = TestClient(app.main.app)
-    code = client.post("/games").json()["lobby_code"]
+    code = client.post("/api/games").json()["lobby_code"]
     for n in "ABCD":
-        client.post(f"/games/{code}/join", json={"nickname": n})
+        client.post(f"/api/games/{code}/join", json={"nickname": n})
     with client.websocket_connect("/ws") as a, client.websocket_connect("/ws") as b:
         _join(a, code, "A")
         _lobby(a)

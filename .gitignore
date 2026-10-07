@@ -7,3 +7,4 @@ dist/
 *.pyc
 .claude/
 .pytest_cache/
+backend/static/
