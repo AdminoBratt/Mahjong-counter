@@ -4,7 +4,7 @@ Följ ordningen. Ett steg i taget. Bocka av `[x]` när steget är klart och veri
 Ingen databas: spelstate hålls i minnet (se CLAUDE.md). Ingen historik eller statistik.
 
 ## Fas 1 — Fundament
-- [ ] **1.1** FastAPI-skelett (struktur, health-endpoint, CORS, `GameStore` i minnet, pytest)
+- [x] **1.1** FastAPI-skelett (struktur, health-endpoint, CORS, `GameStore` i minnet, pytest)
 - [ ] **1.2** React + Vite + TypeScript-skelett med routing
 
 ## Fas 2 — Lobby
