@@ -9,7 +9,7 @@ Ingen databas: spelstate hålls i minnet (se CLAUDE.md). Ingen historik eller st
 
 ## Fas 2 — Lobby
 - [x] **2.1** API: Skapa spel (generera lobby-kod, lagras i `GameStore`)
-- [ ] **2.2** API: Gå med i spel via kod + smeknamn
+- [x] **2.2** API: Gå med i spel via kod + smeknamn
 - [ ] **2.3** WebSocket: anslutning + `join_lobby`-event, inklusive återanslutning med kod + smeknamn
 - [ ] **2.4** UI: Startsida (skapa spel / gå med i spel)
 - [ ] **2.5** UI: Lobby-vy (visar anslutna spelare, väntar på 4 st)

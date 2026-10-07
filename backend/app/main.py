@@ -1,7 +1,9 @@
 import os
+from typing import Annotated
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, StringConstraints
 
 from app.store import GameStore
 
@@ -29,3 +31,29 @@ def health() -> dict[str, str]:
 @app.post("/games", status_code=201)
 async def create_game() -> dict[str, str]:
     return {"lobby_code": store.create().lobby_code}
+
+
+class JoinRequest(BaseModel):
+    # strip sker före längdkontrollen, så bara mellanslag ger 422.
+    nickname: Annotated[
+        str, StringConstraints(strip_whitespace=True, min_length=1, max_length=20)
+    ]
+
+
+@app.post("/games/{lobby_code}/join")
+async def join_game(lobby_code: str, body: JoinRequest) -> dict:
+    try:
+        game, player, rejoined = store.join(lobby_code, body.nickname)
+    except KeyError:
+        raise HTTPException(404, "Okänd lobbykod")
+    except ValueError as e:
+        raise HTTPException(409, str(e))
+    return {
+        "player_id": str(player.id),
+        "lobby_code": game.lobby_code,
+        "rejoined": rejoined,
+        "players": [
+            {"id": str(p.id), "nickname": p.nickname, "seat_order": p.seat_order}
+            for p in game.players
+        ],
+    }
