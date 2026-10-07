@@ -1,12 +1,8 @@
 import { BrowserRouter, Link, Route, Routes, useParams } from 'react-router-dom'
+import Lobby from './Lobby.tsx'
 import Start from './Start.tsx'
 
-// Platshållare, ersätts i steg 2.5 och 4.1.
-function Lobby() {
-  const { code } = useParams()
-  return <h1>Lobby <span className="mono">{code}</span></h1>
-}
-
+// Platshållare, ersätts i steg 4.1.
 function Game() {
   const { code } = useParams()
   return <h1>Spel <span className="mono">{code}</span></h1>

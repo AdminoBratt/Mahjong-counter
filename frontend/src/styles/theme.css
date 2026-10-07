@@ -137,7 +137,8 @@ button:disabled {
   margin-top: auto;
 }
 
-.start {
+.start,
+.lobby {
   display: flex;
   flex-direction: column;
   gap: 24px;
@@ -169,4 +170,59 @@ button:disabled {
     transition: none !important;
     animation: none !important;
   }
+}
+
+.lobby h1,
+.lobby p {
+  margin: 0;
+}
+
+.lobby-code {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+}
+
+.lobby-code .mono {
+  font-size: 2rem;
+  letter-spacing: 0.15em;
+}
+
+.seats {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 16px;
+  list-style: none;
+  background: var(--felt);
+  border-radius: var(--radius);
+}
+
+.seat {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: center;
+  min-height: var(--control-height);
+  padding: 8px 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.seat.empty {
+  background: transparent;
+  border-style: dashed;
+}
+
+.online {
+  color: var(--positive);
+}
+
+.lobby-problem {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
 }
