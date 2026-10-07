@@ -104,4 +104,4 @@ Medvetet uppskjutet, inte buggar.
 ## Lärdomar
 Fylls på löpande. När Claude gör ett fel: skriv in rättelsen här som en kort regel.
 
--
+- Döda aldrig processer via namn (taskkill /IM, pkill) eftersom det kan stänga användarens egna program. Stäng bara processer du själv startat, via PID eller port, och kontrollera först att processen är din.
