@@ -21,7 +21,7 @@ def test_cors_multiple_origins(monkeypatch):
     r = client.get("/health", headers={"Origin": "http://evil.test"})
     assert "access-control-allow-origin" not in r.headers
     monkeypatch.undo()
-    importlib.reload(app.main)  # återställ modulen för andra tester
+    importlib.reload(app.main)  # Ã¥terstÃ¤ll modulen fÃ¶r andra tester
 
 
 def test_create_game():
