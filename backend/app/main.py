@@ -3,6 +3,7 @@ import os
 import uuid
 from pathlib import Path
 from typing import Annotated, Literal
+from urllib.parse import urlsplit
 
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
@@ -110,6 +111,13 @@ async def _broadcast_lobby(game: Game) -> None:
 
 @app.websocket("/ws")
 async def lobby_socket(ws: WebSocket) -> None:
+    # CORS gäller inte WebSockets: neka andra sajter. Samma host (även bakom proxy)
+    # eller CORS_ORIGINS släpps in. Utan Origin = inte en webbläsare, kan förfalskas ändå.
+    origin = ws.headers.get("origin")
+    hosts = {ws.headers.get("host"), ws.headers.get("x-forwarded-host")} - {None}
+    if origin and origin not in cors_origins and urlsplit(origin).netloc not in hosts:
+        await ws.close(code=1008)  # före accept → handskakningen nekas med 403
+        return
     await ws.accept()
     try:
         raw = await asyncio.wait_for(ws.receive_json(), JOIN_TIMEOUT)

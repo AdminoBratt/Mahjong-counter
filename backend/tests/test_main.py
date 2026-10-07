@@ -143,6 +143,22 @@ def test_ws_old_socket_close_keeps_player_connected():
         assert app.main.store.get(code).players[0].connected is True
 
 
+def test_ws_origin_check():
+    client = TestClient(app.main.app)  # host-header: "testserver"
+    with pytest.raises(WebSocketDisconnect) as e:
+        with client.websocket_connect("/ws", headers={"Origin": "https://evil.test"}):
+            pass
+    assert e.value.code == 1008
+    for headers in (
+        {"Origin": "http://localhost:5173"},  # CORS_ORIGINS (Vite lokalt)
+        {"Origin": "https://testserver"},  # samma host
+        {"Origin": "https://app.test", "X-Forwarded-Host": "app.test"},  # bakom proxy
+    ):
+        with client.websocket_connect("/ws", headers=headers) as ws:
+            ws.send_text("inte json")
+            assert ws.receive_json()["code"] == "invalid_message"  # släpptes in
+
+
 def _ws_error(client, payload=None, text=None):
     with client.websocket_connect("/ws") as ws:
         if text is not None:
