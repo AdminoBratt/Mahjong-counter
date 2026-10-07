@@ -2,7 +2,7 @@ import re
 
 import pytest
 
-from app.store import Game, GameStore
+from app.store import Game, GameStore, JoinError
 
 
 def test_add_get_remove():
@@ -61,16 +61,18 @@ def test_join_same_nickname_rejoins_casefolded():
 def test_join_full_game():
     store = GameStore()
     game = _game_with(store, "A", "B", "C", "D")
-    with pytest.raises(ValueError):
+    with pytest.raises(JoinError) as e:
         store.join(game.lobby_code, "E")
+    assert e.value.code == "game_full"
     assert store.join(game.lobby_code, "d") == (game, game.players[3], True)
 
 
 def test_join_active_game():
     store = GameStore()
     game = _game_with(store, "A", status="active")
-    with pytest.raises(ValueError):
+    with pytest.raises(JoinError) as e:
         store.join(game.lobby_code, "B")
+    assert e.value.code == "game_started"
     assert store.join(game.lobby_code, "A") == (game, game.players[0], True)
 
 

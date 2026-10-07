@@ -10,7 +10,7 @@ Ingen databas: spelstate hålls i minnet (se CLAUDE.md). Ingen historik eller st
 ## Fas 2 — Lobby
 - [x] **2.1** API: Skapa spel (generera lobby-kod, lagras i `GameStore`)
 - [x] **2.2** API: Gå med i spel via kod + smeknamn
-- [ ] **2.3** WebSocket: anslutning + `join_lobby`-event, inklusive återanslutning med kod + smeknamn
+- [x] **2.3** WebSocket: anslutning + `join_lobby`-event, inklusive återanslutning med kod + smeknamn
 - [ ] **2.4** UI: Startsida (skapa spel / gå med i spel)
 - [ ] **2.5** UI: Lobby-vy (visar anslutna spelare, väntar på 4 st)
 - [ ] **2.6** UI: Vindval (rond 1, varje spelare väljer sin startvind)
@@ -31,6 +31,7 @@ Ingen databas: spelstate hålls i minnet (se CLAUDE.md). Ingen historik eller st
 - [ ] **4.3** WebSocket: live-uppdateringar till alla spelare
 - [ ] **4.4** UI: Avsluta spel-knapp + slutresultat
 - [ ] **4.5** Backend: Städa bort inaktiva och avslutade spel ur minnet efter en tid
+  - Kom ihåg: stäng öppna sockets i `connections` för spelet som städas bort.
 
 ## Fas 5 — Deployment
 - [ ] **5.1** Frontend → Vercel
@@ -38,3 +39,4 @@ Ingen databas: spelstate hålls i minnet (se CLAUDE.md). Ingen historik eller st
 - [ ] **5.2** Backend → Railway (en instans, ingen databas)
 - [ ] **5.3** Miljövariabler
 - [ ] **5.4** CORS + produktionskonfiguration, frontend ansluter med `wss://` till backendens adress
+  - Kom ihåg: CORS gäller inte WebSockets. Kontrollera `Origin`-headern mot `CORS_ORIGINS` i `/ws`.
