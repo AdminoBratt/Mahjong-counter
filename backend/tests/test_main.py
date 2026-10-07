@@ -1,4 +1,5 @@
 import importlib
+import re
 
 from fastapi.testclient import TestClient
 
@@ -21,3 +22,11 @@ def test_cors_multiple_origins(monkeypatch):
     assert "access-control-allow-origin" not in r.headers
     monkeypatch.undo()
     importlib.reload(app.main)  # återställ modulen för andra tester
+
+
+def test_create_game():
+    r = TestClient(app.main.app).post("/games")
+    assert r.status_code == 201
+    code = r.json()["lobby_code"]
+    assert re.fullmatch(r"[A-HJ-NP-Z2-9]{6}", code)
+    assert app.main.store.get(code) is not None
