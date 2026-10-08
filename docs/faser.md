@@ -61,7 +61,7 @@ Poänghistoriken inom ett pågående spel härleds ur rondresultaten (Beslut 55)
       (placering, spelare, total, antal ronder, "Avslutat av X") plus kurvan och tabellen från 4.2.
       "Nytt spel" tar bort `lobby_code` och `nickname` ur `sessionStorage` och går till `/`.
       `game_finished` läggs till i `STALE_SESSION_CODES`.
-- [ ] **4.5** Backend: Städa bort inaktiva och avslutade spel ur minnet efter en tid
+- [x] **4.5** Backend: Städa bort inaktiva och avslutade spel ur minnet efter en tid
   - Kom ihåg: stäng öppna sockets i `connections` och släpp låset i `locks` för spelet som städas bort.
   - Kom ihåg: avslutade spel (`status == "finished"`) tas bort efter en kort tid. Det gäller även spel där
     alla fyra varit frånkopplade länge, till exempel om skaparen aldrig kom tillbaka. En omladdning efter

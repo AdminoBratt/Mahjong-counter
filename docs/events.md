@@ -99,6 +99,16 @@ Efter `join_lobby` gäller:
 - `invalid_score`: inmatningen bryter mot reglerna, eller både oavgjort och Mahjong. För `final_points`:
   negativt, udda, eller under 20 med `mahjong: true`
 
+Städning (4.5): servern tar bort spel ur minnet och stänger då lobbyns sockets med en egen stängningskod.
+Klienten rensar sparad lobbykod och smeknamn och visar ett besked med en länk till startsidan. Därefter ger
+koden `unknown_lobby` (och `POST /api/games/{kod}/join` 404).
+- `4000`: avslutat spel borttaget, 30 min efter `end_game` (även om någon är ansluten; omladdning förlänger inte).
+  Text: "Spelet är avslutat och har tagits bort från servern."
+- `4001`: inaktivt spel borttaget. Text: "Spelet har tagits bort från servern efter en tids inaktivitet."
+  Gäller väntande spel där ingen varit ansluten på 30 min, pågående spel där ingen varit ansluten på 3 h,
+  och alla spel utan aktivitet (join, godkänt `choose_wind`, godkänt `submit_score`) på 24 h, även med anslutna spelare.
+Tiderna ställs med miljövariabler (se CLAUDE.md). Andra stängningar (t.ex. ny flik) har kod 1000.
+
 `error.code` vid `end_game` (socketen stängs inte, ingen broadcast):
 - `not_host`: avsändaren är inte skaparen (`seat_order` 1)
 - `not_active`: spelet har inte startat

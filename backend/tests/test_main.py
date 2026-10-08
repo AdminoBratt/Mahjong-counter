@@ -1,8 +1,10 @@
 import asyncio
 import importlib
+import logging
 import re
 import uuid
 from contextlib import ExitStack
+from datetime import timedelta
 
 import pytest
 from fastapi import FastAPI
@@ -10,6 +12,7 @@ from fastapi.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 
 import app.main
+from app.store import FINISHED_GAME_TTL, IDLE_GAME_TTL, MAX_IDLE, WAITING_GAME_TTL, GameStore, _now
 
 
 def test_health():
@@ -524,7 +527,7 @@ def test_send_timeout_closes_socket(monkeypatch):
         async def send_json(self, msg):
             await asyncio.sleep(1)
 
-        async def close(self):
+        async def close(self, code=1000):
             self.closed = True
 
     ws = Slow()
@@ -580,3 +583,97 @@ def test_ws_end_game_live_equals_reload():
 
         # Nytt smeknamn nekas.
         assert _ws_error(client, {"type": "join_lobby", "lobby_code": code, "nickname": "E"}) == "game_finished"
+
+
+# --- 4.5: städning ---
+# cleanup(now) anropas med en framtida tid, på serverns event-loop via client.portal. Ingen väntan på riktig tid.
+
+SECOND = timedelta(seconds=1)
+
+
+def _closed_with(ws):
+    with pytest.raises(WebSocketDisconnect) as e:
+        while True:
+            ws.receive_json()
+    return e.value.code
+
+
+def test_cleanup_finished_game_closes_sockets_with_4000():
+    with TestClient(app.main.app) as client, ExitStack() as stack:
+        code, socks, _, _ = _start(client, stack)
+        socks[0].send_json({"type": "end_game"})
+        _all(socks, "game_over")
+        _all(socks, "lobby_update")
+        ended = app.main.store.get(code).last_activity
+
+        client.portal.call(app.main.cleanup, ended + FINISHED_GAME_TTL)
+        assert app.main.store.get(code) is not None
+        client.portal.call(app.main.cleanup, ended + FINISHED_GAME_TTL + SECOND)
+        assert [_closed_with(ws) for ws in socks] == [4000] * 4
+        assert app.main.store.get(code) is None
+        assert code not in app.main.connections and code not in app.main.locks
+        assert _ws_error(client, {"type": "join_lobby", "lobby_code": code, "nickname": "A"}) == "unknown_lobby"
+
+
+def test_cleanup_keeps_connected_rescued_by_rejoin_and_max_idle_4001():
+    with TestClient(app.main.app) as client:
+        with ExitStack() as stack:
+            code, _, _, _ = _start(client, stack)
+            game = app.main.store.get(code)
+            client.portal.call(app.main.cleanup, game.last_activity + MAX_IDLE)
+            assert app.main.store.get(code) is game  # lång paus, men någon är ansluten
+        gone = game.disconnected_since  # alla har kopplat från
+        assert gone is not None
+
+        client.portal.call(app.main.cleanup, gone + IDLE_GAME_TTL)
+        assert app.main.store.get(code) is game
+        with client.websocket_connect("/ws") as a:
+            _join(a, code, "A")
+            _lobby(a)
+            assert game.disconnected_since is None
+            client.portal.call(app.main.cleanup, gone + IDLE_GAME_TTL + SECOND)
+            assert app.main.store.get(code) is game  # räddat av återanslutningen
+
+            # Taket gäller även med en ansluten spelare.
+            client.portal.call(app.main.cleanup, game.last_activity + MAX_IDLE + SECOND)
+            assert _closed_with(a) == 4001
+        assert app.main.store.get(code) is None
+        assert code not in app.main.connections and code not in app.main.locks
+
+
+def test_cleanup_memory_does_not_grow(monkeypatch, caplog):
+    store = GameStore()
+    monkeypatch.setattr(app.main, "store", store)
+    codes = [store.create().lobby_code for _ in range(1000)]
+    assert len(store) == 1000
+    caplog.set_level(logging.INFO, logger="uvicorn.error")
+    assert asyncio.run(app.main.cleanup(_now() + WAITING_GAME_TTL + SECOND)) == 1000
+    assert len(store) == 0 and not set(codes) & app.main.locks.keys()
+    assert "Städning: 1000 spel borttagna, 0 kvar" in caplog.text
+
+
+def test_cleanup_loop_survives_error(monkeypatch):
+    store = GameStore()
+    monkeypatch.setattr(app.main, "store", store)
+    monkeypatch.setattr(app.main, "CLEANUP_INTERVAL", 0)
+    game = store.create()
+    game.status = "finished"
+    game.last_activity -= FINISHED_GAME_TTL + SECOND
+    real, calls = store.stale, []
+
+    def flaky(now):
+        calls.append(now)
+        if len(calls) == 1:
+            raise RuntimeError("första omgången kraschar")
+        return real(now)
+
+    monkeypatch.setattr(store, "stale", flaky)
+
+    async def run():
+        task = asyncio.create_task(app.main._cleanup_loop())
+        while store.get(game.lobby_code):
+            await asyncio.sleep(0)
+        task.cancel()
+
+    asyncio.run(asyncio.wait_for(run(), 2))
+    assert len(calls) >= 2

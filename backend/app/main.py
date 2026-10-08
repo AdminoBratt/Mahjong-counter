@@ -1,6 +1,10 @@
 import asyncio
+import logging
 import os
+import time
 import uuid
+from contextlib import asynccontextmanager
+from datetime import datetime
 from pathlib import Path
 from typing import Annotated, Literal
 from urllib.parse import urlsplit
@@ -11,18 +15,30 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, StrictBool, StrictInt, StringConstraints, ValidationError, model_validator
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from app.store import Game, GameError, GameStore, Round, Wind
+from app.store import Game, GameError, GameStore, Round, Wind, _now
 
-app = FastAPI(title="Mahjong Score Tracker")
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    task = asyncio.create_task(_cleanup_loop())
+    yield
+    task.cancel()
+
+
+app = FastAPI(title="Mahjong Score Tracker", lifespan=lifespan)
 store = GameStore()
 # Öppna sockets per lobby: lobbykod -> spelar-id -> socket.
 connections: dict[str, dict[uuid.UUID, WebSocket]] = {}
 # Ett lås per lobby runt "ändra state + skicka", så att broadcasts inte flätas ihop
 # och en klient får ett gammalt lobby_update sist.
-# ponytail: släpps först när spelet städas bort (4.5); ett Lock per lobby är försumbart.
+# Släpps när spelet städas bort (cleanup).
 locks: dict[str, asyncio.Lock] = {}
 JOIN_TIMEOUT = 10  # sekunder att skicka join_lobby efter anslutning
 SEND_TIMEOUT = 3  # sekunder per sändning, sedan räknas socketen som död
+CLEANUP_INTERVAL = float(os.environ.get("CLEANUP_INTERVAL_SECONDS", "60"))
+CLOSE_FINISHED = 4000  # stängningskod: avslutat spel borttaget
+CLOSE_INACTIVE = 4001  # stängningskod: inaktivt spel borttaget
+log = logging.getLogger("uvicorn.error")  # uvicorn skriver ut den på INFO
 
 cors_origins = [
     o.strip()
@@ -108,9 +124,9 @@ class SubmitScore(BaseModel):
         return self
 
 
-async def _close(ws: WebSocket) -> None:
+async def _close(ws: WebSocket, code: int = 1000) -> None:
     try:
-        await asyncio.wait_for(ws.close(), SEND_TIMEOUT)
+        await asyncio.wait_for(ws.close(code), SEND_TIMEOUT)
     except Exception:
         pass  # redan stängd eller död
 
@@ -246,10 +262,13 @@ async def lobby_socket(ws: WebSocket) -> None:
 
     lock = locks.setdefault(game.lobby_code, asyncio.Lock())
     async with lock:
+        if store.get(game.lobby_code) is not game:  # städades bort medan vi väntade på låset
+            return await _error(ws, "unknown_lobby", "Okänd lobbykod")
         lobby = connections.setdefault(game.lobby_code, {})
         old = lobby.get(player.id)
         lobby[player.id] = ws
         player.connected = True
+        game.disconnected_since = None
         if old is not None:  # samma spelare från ny flik/sidladdning ersätter den gamla
             await _close(old)
         await _broadcast(game, _lobby_msg(game))
@@ -308,7 +327,46 @@ async def lobby_socket(ws: WebSocket) -> None:
             player.connected = False
             if not lobby:
                 connections.pop(game.lobby_code, None)
+                game.disconnected_since = _now()
             await _broadcast(game, _lobby_msg(game))
+
+
+async def cleanup(now: datetime | None = None) -> int:
+    """Tar bort spel som store.is_stale pekar ut, med sockets, connections och lås. Returnerar antalet.
+
+    Under lobbyns lås, så aldrig mitt i en inlämning. now kan sättas i tester.
+    """
+    now = now or _now()
+    removed = 0
+    for game in store.stale(now):
+        code = game.lobby_code
+        async with locks.setdefault(code, asyncio.Lock()):
+            if not store.is_stale(game, now):
+                continue  # någon återanslöt medan vi väntade på låset
+            close_code = CLOSE_FINISHED if game.status == "finished" else CLOSE_INACTIVE
+            lobby = connections.pop(code, {})
+            for ws in list(lobby.values()):
+                await _close(ws, close_code)
+            lobby.clear()  # handlerns slutblock (lobby.get(player.id) is ws) blir en no-op
+            store.remove(code)
+            locks.pop(code, None)
+            removed += 1
+    if removed:
+        log.info("Städning: %d spel borttagna, %d kvar", removed, len(store))
+    return removed
+
+
+async def _cleanup_loop() -> None:
+    next_report = time.monotonic()
+    while True:
+        await asyncio.sleep(CLEANUP_INTERVAL)
+        try:
+            await cleanup()
+        except Exception:  # en misslyckad omgång får inte döda uppgiften
+            log.exception("Städningen misslyckades")
+        if time.monotonic() >= next_report:
+            log.info("%d spel i minnet", len(store))
+            next_report = time.monotonic() + 3600
 
 
 class SPAStaticFiles(StaticFiles):

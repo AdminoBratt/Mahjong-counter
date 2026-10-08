@@ -13,11 +13,14 @@ id            UUID
 lobby_code    str (6 tecken, unik, t.ex. "ABC123")
 status        'waiting' | 'active' | 'finished'   # 'finished' sätts av end_game (bara skaparen)
 created_at    datetime
-last_activity datetime   # används för att städa inaktiva spel
+last_activity datetime   # senast rörd: create, join (inte till avslutat spel), godkänt choose_wind/submit_score, end_game
+disconnected_since datetime | None   # när sista socketen stängdes, None medan någon är ansluten
 players       list[GamePlayer]
 rounds        list[Round]  # sista = aktuell rond, skapas när status blir 'active'
 ```
 Rondnummer och rondens vind läses från `rounds[-1]`. Skaparen är spelaren med `seat_order` 1.
+`GameStore.is_stale(game, now)` avgör om spelet ska städas bort (tider i docs/events.md, "Städning").
+Alla tider är UTC-datetime med tidszon (`_now()`).
 `Game.standings()` ger slutställningen (placering, spelare). En rond som pågick när spelet avslutades
 ligger kvar i `rounds` men räknas inte och visas inte.
 

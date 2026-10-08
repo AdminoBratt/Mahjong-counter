@@ -1,7 +1,8 @@
+import os
 import secrets
 import uuid
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Literal
 
 from pydantic import ValidationError
@@ -17,6 +18,12 @@ def _now() -> datetime:
 
 
 MAX_PLAYERS = 4
+
+# Städning (4.5). Tiderna jämförs med _now() (UTC med tidszon) och kan ändras utan ny kod.
+FINISHED_GAME_TTL = timedelta(minutes=float(os.environ.get("FINISHED_GAME_TTL_MINUTES", "30")))
+WAITING_GAME_TTL = timedelta(minutes=float(os.environ.get("WAITING_GAME_TTL_MINUTES", "30")))
+IDLE_GAME_TTL = timedelta(minutes=float(os.environ.get("IDLE_GAME_TTL_MINUTES", "180")))
+MAX_IDLE = timedelta(hours=float(os.environ.get("MAX_IDLE_HOURS", "24")))
 
 
 @dataclass
@@ -78,7 +85,9 @@ class Game:
     id: uuid.UUID = field(default_factory=uuid.uuid4)
     status: Literal["waiting", "active", "finished"] = "waiting"
     created_at: datetime = field(default_factory=_now)
-    last_activity: datetime = field(default_factory=_now)
+    last_activity: datetime = field(default_factory=_now)  # spelet har rörts (join, val, inlämning, avslut)
+    # När sista socketen stängdes, None medan någon är ansluten. Mäts skilt från last_activity.
+    disconnected_since: datetime | None = field(default_factory=_now)
     players: list[GamePlayer] = field(default_factory=list)
     rounds: list[Round] = field(default_factory=list)  # sista = aktuell rond
 
@@ -132,7 +141,8 @@ class GameStore:
         Synkron av samma skäl som create(): ingen kapplöpning om sista platsen.
         """
         game = self._games[lobby_code.upper()]
-        game.last_activity = _now()
+        if game.status != "finished":  # omladdning av slutvyn förlänger inte städtiden
+            game.last_activity = _now()
         for p in game.players:
             if p.nickname.casefold() == nickname.casefold():
                 return game, p, True
@@ -248,3 +258,21 @@ class GameStore:
 
     def remove(self, lobby_code: str) -> None:
         self._games.pop(lobby_code, None)
+
+    def __len__(self) -> int:
+        return len(self._games)
+
+    def is_stale(self, game: Game, now: datetime) -> bool:
+        """Ska spelet städas bort? Ett pågående spel med någon ansluten tas bara bort efter MAX_IDLE utan aktivitet."""
+        idle = now - game.last_activity
+        if game.status == "finished":
+            return idle > FINISHED_GAME_TTL
+        if idle > MAX_IDLE:
+            return True
+        if any(p.connected for p in game.players):
+            return False
+        gone = now - max(game.disconnected_since, game.last_activity)  # REST-join utan socket räknas också
+        return gone > (WAITING_GAME_TTL if game.status == "waiting" else IDLE_GAME_TTL)
+
+    def stale(self, now: datetime) -> list[Game]:
+        return [g for g in self._games.values() if self.is_stale(g, now)]

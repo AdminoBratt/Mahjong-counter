@@ -1,8 +1,9 @@
 import re
+from datetime import timedelta
 
 import pytest
 
-from app.store import Game, GameStore, GameError
+from app.store import FINISHED_GAME_TTL, IDLE_GAME_TTL, MAX_IDLE, WAITING_GAME_TTL, Game, GameError, GameStore
 
 
 def test_add_get_remove():
@@ -412,3 +413,51 @@ def test_standings_shared_places(totals, places, order):
     s = game.standings()
     assert [place for place, _ in s] == places
     assert [p.nickname for _, p in s] == order
+
+
+# --- 4.5: städning ---
+
+SECOND = timedelta(seconds=1)
+
+
+def test_finished_game_stale_after_ttl_even_if_connected():
+    store = GameStore()
+    game = _game_with(store, "A", status="finished")
+    game.players[0].connected = True
+    t = game.last_activity
+    assert not store.is_stale(game, t + FINISHED_GAME_TTL)
+    assert store.is_stale(game, t + FINISHED_GAME_TTL + SECOND)
+    assert store.stale(t + FINISHED_GAME_TTL + SECOND) == [game]
+
+
+def test_rejoin_finished_game_does_not_extend_ttl():
+    store = GameStore()
+    game = _game_with(store, "A", status="finished")
+    t = game.last_activity
+    store.join(game.lobby_code, "a")
+    assert game.last_activity == t
+
+
+@pytest.mark.parametrize("status", ["waiting", "active"])
+def test_connected_game_kept_until_max_idle(status):
+    store = GameStore()
+    game = _game_with(store, "A", status=status)
+    game.players[0].connected, game.disconnected_since = True, None
+    t = game.last_activity
+    assert not store.is_stale(game, t + MAX_IDLE)  # lång paus mellan ronder
+    assert store.is_stale(game, t + MAX_IDLE + SECOND)
+
+
+@pytest.mark.parametrize("status, ttl", [("waiting", WAITING_GAME_TTL), ("active", IDLE_GAME_TTL)])
+def test_disconnected_game_stale_after_ttl(status, ttl):
+    store = GameStore()
+    game = _game_with(store, "A", status=status)
+    t = game.last_activity
+    # Mäts från sista frånkopplingen när den är senare än senaste aktiviteten...
+    game.disconnected_since = gone = t + timedelta(hours=1)
+    assert not store.is_stale(game, gone + ttl)
+    assert store.is_stale(game, gone + ttl + SECOND)
+    # ...och från aktiviteten (t.ex. REST-join utan socket) när den är senare.
+    game.disconnected_since = t - timedelta(hours=1)
+    assert not store.is_stale(game, t + ttl)
+    assert store.is_stale(game, t + ttl + SECOND)
