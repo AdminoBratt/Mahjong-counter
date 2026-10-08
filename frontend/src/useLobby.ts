@@ -4,7 +4,7 @@ import { WS_URL } from './api.ts'
 import type { ScoreInput } from './draft.ts'
 
 // Efter dessa koder går det inte att gå med igen med samma kod/namn.
-const STALE_SESSION_CODES = ['unknown_lobby', 'game_full', 'game_started', 'invalid_nickname']
+const STALE_SESSION_CODES = ['unknown_lobby', 'game_full', 'game_started', 'game_finished', 'invalid_nickname']
 
 export type Wind = 'east' | 'south' | 'west' | 'north'
 export type Player = {
@@ -48,6 +48,12 @@ export type RoundResult = {
 }
 // Total per spelare efter varje avslutad rond, från servern. Index = rondnummer, [0] = start.
 export type ScoreHistory = Record<string, number[]>
+// Slutresultatet, från lobby_update när spelet är avslutat. Placeringarna räknas i backend (lika total = delad).
+export type FinalResult = {
+  rounds_played: number
+  ended_by: string
+  standings: { player_id: string; place: number; total_score: number }[] // bäst först
+}
 export type Status = 'connecting' | 'open' | 'closed' | { error: string }
 
 export const WINDS: [Wind, string][] = [
@@ -69,6 +75,7 @@ export function useLobby(code: string) {
   const [currentRound, setCurrentRound] = useState<CurrentRound | null>(null)
   const [lastRound, setLastRound] = useState<RoundResult | null>(null)
   const [scoreHistory, setScoreHistory] = useState<ScoreHistory>({})
+  const [finalResult, setFinalResult] = useState<FinalResult | null>(null)
   // Fel på ett meddelande efter join (t.ex. submit_score). Socketen lever vidare.
   const [actionError, setActionError] = useState<{ code: string; message: string } | null>(null)
   const wsRef = useRef<WebSocket | null>(null)
@@ -93,6 +100,7 @@ export function useLobby(code: string) {
         setCurrentRound(msg.current_round)
         setLastRound(msg.last_round) // round_complete ignoreras: last_round är en kodväg för live och omladdning
         setScoreHistory(msg.score_history)
+        setFinalResult(msg.final_result) // game_over ignoreras, som round_complete
         setStatus('open')
       } else if (msg.type === 'error' && joined) {
         setActionError({ code: msg.code, message: msg.message })
@@ -124,7 +132,19 @@ export function useLobby(code: string) {
     setAttempt((n) => n + 1)
   }
 
-  return { nickname, players, gameStatus, currentRound, lastRound, scoreHistory, actionError, status, send, reconnect }
+  return {
+    nickname,
+    players,
+    gameStatus,
+    currentRound,
+    lastRound,
+    scoreHistory,
+    finalResult,
+    actionError,
+    status,
+    send,
+    reconnect,
+  }
 }
 
 // Det som layout-routen skickar till Lobby och Game. Barnen renderas först när gameStatus är satt.
