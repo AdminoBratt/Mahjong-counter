@@ -128,3 +128,7 @@ Systemet föreslår dubblingar automatiskt utifrån Vy 1. Användaren bekräftar
 14. Vinnarens poäng påverkar inte förlorarnas uppgörelse sinsemellan, eftersom vinnaren inte deltar där.
 15. Öst-spelaren anges med spelar-id till betalningslogiken, inte genom allas vindar.
 16. Betalningslogiken (`settle`) ligger i `backend/app/scoring.py`, ingen egen modul.
+17. Vindrotationen flyttar varje spelares vind ett steg Öst→Nord→Väst→Syd→Öst, så Syd-spelaren blir ny Öst.
+18. Vindrotationslogiken (`rotate_winds`) ligger i `backend/app/scoring.py`, ingen egen modul.
+19. `rotate_winds` tar spelar-id → vind och vinnarens spelar-id, `winner=None` betyder oavgjort (samma form som `settle`).
+20. `rotate_winds` returnerar bara nästa ronds vindar. Rondnummer hör till 3.4 och rondens vind till den tekniska skulden.

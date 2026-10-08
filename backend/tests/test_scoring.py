@@ -1,6 +1,6 @@
 import pytest
 
-from app.scoring import score, settle
+from app.scoring import rotate_winds, score, settle
 
 
 def pong(major=False, concealed=False, size=3):
@@ -198,3 +198,75 @@ def test_settle_all_winners_and_easts(winner, east):
 def test_settle_invalid_input(points, winner, east):
     with pytest.raises(ValueError):
         settle(points, winner, east)
+
+
+START = {"A": "east", "B": "south", "C": "west", "D": "north"}
+
+
+def rotate(winds, winner):
+    before = dict(winds)
+    after = rotate_winds(winds, winner)
+    assert winds == before  # indatat muteras inte
+    assert after.keys() == winds.keys()
+    assert sorted(after.values()) == sorted(START.values())  # varje vind exakt en gång
+    return after
+
+
+def test_rotate_winds():
+    assert rotate(START, "B") == {"A": "north", "B": "east", "C": "south", "D": "west"}
+
+
+@pytest.mark.parametrize(
+    "winner, expected",
+    [
+        ("A", START),
+        ("B", {"A": "north", "B": "east", "C": "south", "D": "west"}),
+        ("C", {"A": "north", "B": "east", "C": "south", "D": "west"}),
+        ("D", {"A": "north", "B": "east", "C": "south", "D": "west"}),
+    ],
+)
+def test_rotate_winds_each_winner(winner, expected):
+    assert rotate(START, winner) == expected
+
+
+def test_rotate_winds_four_rotations_back_to_start():
+    winds = START
+    for _ in range(4):
+        non_east = next(p for p, w in winds.items() if w != "east")
+        winds = rotate(winds, non_east)
+    assert winds == START
+
+
+def test_rotate_winds_east_wins_or_draw_unchanged():
+    assert rotate(START, "A") == START
+    assert rotate(START, None) == START
+
+
+def test_rotate_winds_new_east_wins():
+    winds = rotate(START, "C")  # B blir Öst
+    assert winds["B"] == "east"
+    assert rotate(winds, "B") == winds
+
+
+def test_rotate_winds_hand_example():
+    # Exemplet i planen: B vann rond 1, A vann rond 2, oavgjort rond 3, C (Öst) vann rond 4.
+    r2 = rotate(START, "B")
+    r3 = rotate(r2, "A")
+    assert r3 == {"A": "west", "B": "north", "C": "east", "D": "south"}
+    assert rotate(r3, None) == r3
+    assert rotate(r3, "C") == r3
+
+
+@pytest.mark.parametrize(
+    "winds, winner",
+    [
+        ({"A": "east", "B": "south", "C": "west"}, "A"),
+        ({**START, "E": "east"}, "A"),
+        ({**START, "D": "east"}, "A"),
+        ({**START, "D": "up"}, "A"),
+        (START, "X"),
+    ],
+)
+def test_rotate_winds_invalid_input(winds, winner):
+    with pytest.raises(ValueError):
+        rotate_winds(winds, winner)
