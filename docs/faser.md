@@ -20,9 +20,9 @@ Ingen databas: spelstate hålls i minnet (se CLAUDE.md). Ingen historik eller st
 - [x] **3.1** Backend: Poängberäkningsmodul (baspoäng + dubblingar)
 - [x] **3.2** Backend: Betalningslogik
 - [x] **3.3** Backend: Vindrotationslogik
-- [ ] **3.4** API + WebSocket: `submit_score`, `round_complete`
+- [x] **3.4** API + WebSocket: `submit_score`, `round_complete`
   - [x] **3.4a** Backend: rondflöde i `GameStore` (`submit_score`, oavgjort, konflikter) + tester
-  - [ ] **3.4b** WebSocket: `submit_score`, `round_complete`, `current_round` i `lobby_update`, lås per lobby
+  - [x] **3.4b** WebSocket: `submit_score`, `round_complete`, `current_round` i `lobby_update`, lås per lobby
     - Kom ihåg: test att `round_complete` kommer före nya `lobby_update`; tillfälligt skript (committas inte)
       som spelar en rond med fyra spelare mot en riktig server.
 - [ ] **3.5** UI: Vy 1, Baspoäng (desktop-optimerad)
