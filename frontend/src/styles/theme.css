@@ -603,7 +603,8 @@ button:disabled {
   font-size: 1.25rem;
 }
 
-.result-table .big {
+/* td.big: samma specificitet som td.num ovan och senare i filen, annars vinner 1.25rem. */
+.result-table td.big {
   font-size: 2rem;
 }
 
