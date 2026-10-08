@@ -145,22 +145,31 @@ def _lobby_msg(game: Game) -> dict:
             "round_wind": rnd.round_wind,
             "conflict": rnd.conflict(),
             "submissions": {
-                str(s.game_player_id): {"draw": s.draw, "score_input": s.score_input}
+                str(s.game_player_id): {
+                    "draw": s.draw,
+                    "score_input": s.score_input,
+                    "base_points": s.base_points,
+                    "doublings": s.doublings,
+                    "final_points": s.final_points,
+                }
                 for s in rnd.scores
             },
         },
+        "last_round": _round_result(game, game.rounds[-2]) if len(game.rounds) > 1 else None,
     }
 
 
-def _round_complete_msg(game: Game, rnd: Round) -> dict:
-    """Skickas efter att ronden avslutats, så spelarnas vindar är redan nästa ronds."""
+def _round_result(game: Game, rnd: Round) -> dict:
+    """Senast avslutade ronden. Spelarnas vindar och totaler är redan nästa ronds,
+    och ändras inte förrän nästa rond avslutas. Samma innehåll live och efter omladdning."""
     return {
-        "type": "round_complete",
         "round_id": str(rnd.id),
         "round_number": rnd.round_number,
+        "round_wind": rnd.round_wind,
         "winner_id": rnd.winner_id and str(rnd.winner_id),
         "payments": {
             str(s.game_player_id): {
+                "wind": s.wind,
                 "base_points": s.base_points,
                 "doublings": s.doublings,
                 "final_points": s.final_points,
@@ -245,7 +254,7 @@ async def lobby_socket(ws: WebSocket) -> None:
                     await _send(ws, _error_msg(e.code, str(e)))
                     continue
                 if rnd is not None:  # round_complete före nästa ronds lobby_update
-                    await _broadcast(game, _round_complete_msg(game, rnd))
+                    await _broadcast(game, {"type": "round_complete", **_round_result(game, rnd)})
                 await _broadcast(game, _lobby_msg(game))
     except (WebSocketDisconnect, RuntimeError):
         pass

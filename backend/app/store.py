@@ -38,6 +38,7 @@ class RoundScore:
     did_mahjong: bool
     draw: bool  # spelaren har valt oavgjort
     score_input: dict  # rådata från spelaren
+    wind: Wind  # spelarens vind i ronden; GamePlayer.wind har roterats när ronden avslutats
     payment_delta: int = 0  # sätts när ronden avslutas
 
 
@@ -159,7 +160,9 @@ class GameStore:
 
         rnd.scores = [x for x in rnd.scores if x.game_player_id != player.id]
         rnd.scores.append(
-            RoundScore(player.id, s.base_points, s.doublings, s.final_points, did_mahjong, draw, raw)
+            RoundScore(
+            player.id, s.base_points, s.doublings, s.final_points, did_mahjong, draw, raw, player.wind
+        )
         )
         game.last_activity = _now()
         if len(rnd.scores) < MAX_PLAYERS or rnd.conflict():

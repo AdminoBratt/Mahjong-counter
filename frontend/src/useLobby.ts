@@ -16,12 +16,28 @@ export type Player = {
   total_score: number
 }
 export type GameStatus = 'waiting' | 'active' | 'finished'
+// Uträkningen kommer från servern och visas som den är.
+export type RoundSubmission = Submission & { base_points: number; doublings: number; final_points: number }
+export type Conflict = 'no_mahjong' | 'multiple_mahjong' | 'draw_disagreement'
 export type CurrentRound = {
   id: string
   round_number: number
   round_wind: Wind
-  conflict: null | 'no_mahjong' | 'multiple_mahjong' | 'draw_disagreement'
-  submissions: Record<string, Submission>
+  conflict: Conflict | null
+  submissions: Record<string, RoundSubmission>
+}
+// Senast avslutade ronden, från lobby_update. Samma innehåll live och efter omladdning.
+export type RoundResult = {
+  round_id: string
+  round_number: number
+  round_wind: Wind
+  winner_id: string | null // null = oavgjort
+  payments: Record<
+    string,
+    { wind: Wind; base_points: number; doublings: number; final_points: number; payment_delta: number }
+  >
+  new_totals: Record<string, number>
+  next_round_winds: Record<string, Wind>
 }
 export type Status = 'connecting' | 'open' | 'closed' | { error: string }
 
@@ -42,6 +58,9 @@ export function useLobby(code: string) {
   const [players, setPlayers] = useState<Player[]>([])
   const [gameStatus, setGameStatus] = useState<GameStatus | null>(null) // null tills första lobby_update
   const [currentRound, setCurrentRound] = useState<CurrentRound | null>(null)
+  const [lastRound, setLastRound] = useState<RoundResult | null>(null)
+  // Fel på ett meddelande efter join (t.ex. submit_score). Socketen lever vidare.
+  const [actionError, setActionError] = useState<{ code: string; message: string } | null>(null)
   const wsRef = useRef<WebSocket | null>(null)
   const [status, setStatus] = useState<Status>('connecting')
   const [attempt, setAttempt] = useState(0)
@@ -50,6 +69,7 @@ export function useLobby(code: string) {
     if (!nickname) return
     let current = true // false efter cleanup, så gamla sockets (t.ex. StrictMode) ignoreras
     let gotError = false
+    let joined = false // efter första lobby_update är fel inte längre join-fel
     const ws = new WebSocket(WS_URL)
     wsRef.current = ws
     ws.onopen = () => ws.send(JSON.stringify({ type: 'join_lobby', lobby_code: code, nickname }))
@@ -57,10 +77,14 @@ export function useLobby(code: string) {
       if (!current) return
       const msg = JSON.parse(e.data)
       if (msg.type === 'lobby_update') {
+        joined = true
         setPlayers(msg.players)
         setGameStatus(msg.status)
         setCurrentRound(msg.current_round)
+        setLastRound(msg.last_round) // round_complete ignoreras: last_round är en kodväg för live och omladdning
         setStatus('open')
+      } else if (msg.type === 'error' && joined) {
+        setActionError({ code: msg.code, message: msg.message })
       } else if (msg.type === 'error') {
         gotError = true
         if (STALE_SESSION_CODES.includes(msg.code)) {
@@ -80,6 +104,7 @@ export function useLobby(code: string) {
   }, [code, nickname, attempt])
 
   function send(msg: object) {
+    setActionError(null)
     wsRef.current?.send(JSON.stringify(msg))
   }
 
@@ -88,7 +113,7 @@ export function useLobby(code: string) {
     setAttempt((n) => n + 1)
   }
 
-  return { nickname, players, gameStatus, currentRound, status, send, reconnect }
+  return { nickname, players, gameStatus, currentRound, lastRound, actionError, status, send, reconnect }
 }
 
 // Det som layout-routen skickar till Lobby och Game. Barnen renderas först när gameStatus är satt.
