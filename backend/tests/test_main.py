@@ -421,7 +421,7 @@ def test_ws_game_errors_only_to_sender():
             _submit(socks[0], r, inp, draw)
             got = socks[0].receive_json()
             assert got["type"] == "error" and got["code"] == err and got["message"]
-        socks[0].send_json({"type": "end_game"})  # okänd typ: ignoreras, inget svar
+        socks[0].send_json({"type": "mark_mahjong"})  # okänd typ: ignoreras, inget svar
 
         # Socketen lever, och de andra fick inget error: nästa meddelande är broadcasten.
         _submit(socks[0], rnd, LOSER)
@@ -530,3 +530,53 @@ def test_send_timeout_closes_socket(monkeypatch):
     ws = Slow()
     asyncio.run(app.main._send(ws, {}))
     assert ws.closed
+
+
+def test_ws_end_game_live_equals_reload():
+    client = TestClient(app.main.app)
+    with ExitStack() as stack:
+        code, socks, ids, msg = _start(client, stack)
+        _, nxt = _play(socks, msg["current_round"], (LOSER_4, LOSER, LOSER_8, WINNER))
+        _, nxt = _play(socks, nxt["current_round"], (LOSER, WINNER, LOSER_4, LOSER_8))
+        history = nxt["score_history"]
+        # Rond 3 pågår: A har lämnat in.
+        _submit(socks[0], nxt["current_round"], LOSER)
+        _all(socks, "lobby_update")
+
+        # Bara skaparen (A, plats 1) får avsluta. Felet går bara till B.
+        socks[1].send_json({"type": "end_game"})
+        assert socks[1].receive_json()["code"] == "not_host"
+
+        socks[0].send_json({"type": "end_game"})
+        over = _all(socks, "game_over")  # före lobby_update, som round_complete
+        final = _all(socks, "lobby_update")
+        live = {k: v for k, v in over.items() if k != "type"}
+        assert final["status"] == "finished" and final["current_round"] is None
+        assert final["final_result"] == live
+        assert live["rounds_played"] == 2 and live["ended_by"] == ids[0]
+        assert live["standings"] == [
+            {"player_id": ids[1], "place": 1, "total_score": 140},
+            {"player_id": ids[3], "place": 2, "total_score": 70},
+            {"player_id": ids[2], "place": 3, "total_score": -78},
+            {"player_id": ids[0], "place": 4, "total_score": -132},
+        ]
+        assert final["score_history"] == history  # rond 3 räknas inte
+
+        # Omladdning: identiskt slutresultat.
+        socks[2].close()
+        _all([socks[0], socks[1], socks[3]], "lobby_update")
+        c = stack.enter_context(client.websocket_connect("/ws"))
+        _join(c, code, "C")
+        socks[2] = c
+        reloaded = _all(socks, "lobby_update")
+        assert reloaded["final_result"] == live and reloaded["score_history"] == history
+
+        # choose_wind ignoreras tyst. submit_score och end_game ger fel bara till avsändaren.
+        socks[3].send_json({"type": "choose_wind", "wind": "east"})
+        _submit(socks[3], nxt["current_round"], LOSER)
+        assert socks[3].receive_json()["code"] == "game_finished"
+        socks[0].send_json({"type": "end_game"})
+        assert socks[0].receive_json()["code"] == "game_finished"
+
+        # Nytt smeknamn nekas.
+        assert _ws_error(client, {"type": "join_lobby", "lobby_code": code, "nickname": "E"}) == "game_finished"

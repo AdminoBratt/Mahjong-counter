@@ -53,6 +53,10 @@ class Round:
     winner_id: uuid.UUID | None = None
     scores: list[RoundScore] = field(default_factory=list)
 
+    @property
+    def completed(self) -> bool:
+        return self.winner_id is not None or self.is_draw
+
     def conflict(self) -> str | None:
         """Varför ronden inte kan avslutas trots att alla fyra lämnat in, annars None."""
         if len(self.scores) < MAX_PLAYERS:
@@ -83,13 +87,19 @@ class Game:
         totals = {p.id: 0 for p in self.players}
         history = {str(p.id): [0] for p in self.players}
         for rnd in self.rounds:
-            if rnd.winner_id is None and not rnd.is_draw:
+            if not rnd.completed:
                 continue  # pågående rond
             for s in rnd.scores:
                 totals[s.game_player_id] += s.payment_delta
             for p in self.players:
                 history[str(p.id)].append(totals[p.id])
         return history
+
+    def standings(self) -> list[tuple[int, GamePlayer]]:
+        """(placering, spelare), bäst först. Lika total = delad placering, nästa hoppas över (1, 2, 2, 4).
+        Bland lika totaler gäller sätesordningen."""
+        ranked = sorted(self.players, key=lambda p: -p.total_score)  # stabil: players är i sätesordning
+        return [(1 + sum(q.total_score > p.total_score for q in self.players), p) for p in ranked]
 
 
 class GameError(ValueError):
@@ -126,6 +136,8 @@ class GameStore:
         for p in game.players:
             if p.nickname.casefold() == nickname.casefold():
                 return game, p, True
+        if game.status == "finished":
+            raise GameError("game_finished", "Spelet är avslutat")
         if game.status != "waiting":
             raise GameError("game_started", "Spelet har redan startat")
         if len(game.players) >= MAX_PLAYERS:
@@ -166,6 +178,8 @@ class GameStore:
         Antingen rådata (raw) eller en slutpoäng som spelaren räknat själv (raw=None, final_points, mahjong).
         GameError vid fel. Synkron av samma skäl som join(): ronden avslutas bara en gång.
         """
+        if game.status == "finished":
+            raise GameError("game_finished", "Spelet är avslutat")
         if game.status != "active":
             raise GameError("not_active", "Spelet är inte igång")
         rnd = game.rounds[-1]
@@ -214,6 +228,17 @@ class GameStore:
         rnd.winner_id = win.game_player_id if win else None
         game.rounds.append(Round(round_number=rnd.round_number + 1))
         return rnd
+
+    def end_game(self, game: Game, player: GamePlayer) -> None:
+        """Bara skaparen (plats 1) avslutar. En pågående rond räknas inte, den ligger kvar men visas inte."""
+        if player.seat_order != 1:
+            raise GameError("not_host", "Bara den som skapade lobbyn kan avsluta spelet")
+        if game.status == "finished":
+            raise GameError("game_finished", "Spelet är avslutat")
+        if game.status != "active":
+            raise GameError("not_active", "Spelet är inte igång")
+        game.status = "finished"
+        game.last_activity = _now()
 
     def add(self, game: Game) -> None:
         self._games[game.lobby_code] = game

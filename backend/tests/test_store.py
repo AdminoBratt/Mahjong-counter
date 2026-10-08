@@ -346,3 +346,69 @@ def test_score_history_per_round():
     store.submit_score(game, b, game.rounds[-1].id, CHOWS_MAHJONG, False)
     store.submit_score(game, c, game.rounds[-1].id, SET_2, False)
     assert _assert_history(game, 3) == h
+
+
+# --- 4.4a: avsluta spel ---
+
+
+def test_end_game_keeps_completed_rounds_and_drops_pending():
+    store = GameStore()
+    game, a, b, c, d = _active_game(store)
+    _submit_all(store, game, [SET_2, {}, SET_4, CHOWS_MAHJONG])
+    _submit_all(store, game, [{}, {}, {}, {}], draw=True)
+    _submit_all(store, game, [SET_2, {}, SET_4, CHOWS_MAHJONG])  # rond 3: B är Öst, D vinner
+    totals = [p.total_score for p in game.players]
+    history = game.score_history()
+    # Rond 4 pågår med två inlämningar när spelet avslutas.
+    _direct(store, game, a, 48, mahjong=True)
+    _direct(store, game, b, 8)
+
+    store.end_game(game, a)
+    assert game.status == "finished"
+    assert [p.total_score for p in game.players] == totals
+    assert game.score_history() == history
+    assert sum(r.completed for r in game.rounds) == 3
+    assert not game.rounds[-1].completed and len(game.rounds[-1].scores) == 2
+
+    for call in (
+        lambda: _direct(store, game, c, 8),
+        lambda: store.join(game.lobby_code, "E"),
+        lambda: store.end_game(game, a),
+    ):
+        with pytest.raises(GameError) as e:
+            call()
+        assert e.value.code == "game_finished"
+    assert store.join(game.lobby_code, "c")[1:] == (c, True)  # känd spelare går in igen
+    assert store.choose_wind(game, a, "south") is False
+
+
+def test_end_game_only_host_and_only_active():
+    store = GameStore()
+    game, a, b, *_ = _active_game(store)
+    with pytest.raises(GameError) as e:
+        store.end_game(game, b)
+    assert e.value.code == "not_host" and game.status == "active"
+
+    waiting = _game_with(store, "A", "B")
+    with pytest.raises(GameError) as e:
+        store.end_game(waiting, waiting.players[0])
+    assert e.value.code == "not_active" and waiting.status == "waiting"
+
+
+@pytest.mark.parametrize(
+    "totals, places, order",
+    [
+        ([-100, 0, 0, 100], [1, 2, 2, 4], ["D", "B", "C", "A"]),
+        ([0, 0, 0, 0], [1, 1, 1, 1], ["A", "B", "C", "D"]),
+        ([50, 50, -30, -70], [1, 1, 3, 4], ["A", "B", "C", "D"]),
+        ([-10, 30, 30, -50], [1, 1, 3, 4], ["B", "C", "A", "D"]),
+    ],
+)
+def test_standings_shared_places(totals, places, order):
+    store = GameStore()
+    game, *players = _active_game(store)
+    for p, t in zip(players, totals):
+        p.total_score = t
+    s = game.standings()
+    assert [place for place, _ in s] == places
+    assert [p.nickname for _, p in s] == order
