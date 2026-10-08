@@ -171,7 +171,13 @@ export default function Game() {
         )}
       </header>
 
-      <Standings players={players} meId={me.id} />
+      <Standings
+        players={players}
+        meId={me.id}
+        round={round}
+        lastRoundNumber={lastRound?.round_number ?? null}
+        showingResult={result !== null}
+      />
 
       {missedRound !== null && (
         <p role="status" className="notice">
@@ -301,21 +307,48 @@ const ERROR_TEXT: Record<string, string> = {
   invalid_message: 'Något gick fel när inmatningen skickades. Försök igen.',
 }
 
-// Ställningen. Totalerna kommer från servern.
-function Standings({ players, meId }: { players: Player[]; meId: string }) {
+type StandingsProps = {
+  players: Player[]
+  meId: string
+  round: CurrentRound
+  lastRoundNumber: number | null
+  showingResult: boolean
+}
+
+// Ställningen. Totaler, vindar och rond kommer från servern. Fast ordning (seat_order), sorteras aldrig om.
+function Standings({ players, meId, round, lastRoundNumber, showingResult }: StandingsProps) {
+  const top = Math.max(...players.map((p) => p.total_score))
+  // "Leder" bara när en spelare ensam har högst total.
+  const leader = players.filter((p) => p.total_score === top).length === 1 ? top : null
   return (
-    <ol className="standings" aria-label="Ställning">
-      {players.map((p) => (
-        <li key={p.id}>
-          <span>
-            {p.nickname}
-            {p.id === meId && <span className="muted"> (du)</span>}
-          </span>
-          <span className="muted">{p.wind && WIND_NAME[p.wind]}</span>
-          <span className={`mono ${tone(p.total_score)}`}>{signed(p.total_score)}</span>
-        </li>
-      ))}
-    </ol>
+    <section className="standings" aria-labelledby="standings-heading">
+      <h2 id="standings-heading" className="visually-hidden">
+        Ställning
+      </h2>
+      <p className="muted">
+        {showingResult ? 'Nästa: ' : ''}Rond {round.round_number} · Rondens vind: {WIND_NAME[round.round_wind]}{' '}
+        <span className="small">(roterar inte ännu)</span>
+      </p>
+      <p role="status" className="visually-hidden">
+        {lastRoundNumber !== null && `Ställningen har uppdaterats efter rond ${lastRoundNumber}`}
+      </p>
+      <ol>
+        {players.map((p) => (
+          <li key={p.id} className={`${p.id === meId ? 'mine' : ''} ${p.connected ? '' : 'offline'}`}>
+            <span className="standing-name">
+              {p.nickname}
+              {p.id === meId && <span className="muted"> (du)</span>}
+            </span>
+            <span className="muted">
+              {p.wind === 'east' ? <span className="tag">Öst · dubbelt</span> : p.wind && WIND_NAME[p.wind]}
+              {p.total_score === leader && <span className="tag">Leder</span>}
+            </span>
+            <span className={`mono standing-total ${tone(p.total_score)}`}>{signed(p.total_score)}</span>
+            {!p.connected && <span className="muted">Frånkopplad</span>}
+          </li>
+        ))}
+      </ol>
+    </section>
   )
 }
 
