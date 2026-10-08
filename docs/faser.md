@@ -29,7 +29,7 @@ Ingen databas: spelstate hålls i minnet (se CLAUDE.md). Ingen historik eller st
 - [x] **3.6** UI: Vy 2, Allmänna dubblingar
 - [x] **3.7** UI: Vy 3, Mahjong-dubblingar (konditionell)
 - [ ] **3.8** UI: Bekräftelseskärm med uträkning + betalningar
-  - [ ] **3.8a** Skicka in och vänta: sammanfattning, uträkning från servern, konflikter, serverfel, ställning i huvudet
+  - [x] **3.8a** Skicka in och vänta: sammanfattning, uträkning från servern, konflikter, serverfel, ställning i huvudet
     - Kom ihåg: testa att en omladdning mitt i en rond fyller i formuläret igen från serverns `submissions` (egen inlämning, även oavgjort).
   - [ ] **3.8b** Rondresultat: `last_round` i `lobby_update`, betalningar, nya totaler, vind i ronden och nästa vindar, knappen "Nästa rond"
 

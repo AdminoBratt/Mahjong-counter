@@ -288,8 +288,9 @@ def test_ws_full_round():
         done = _all(socks, "round_complete")  # före nya lobby_update
         assert done["round_id"] == rnd["id"] and done["round_number"] == 1
         assert done["winner_id"] == ids[3]
+        assert done["round_wind"] == "east"
         assert done["payments"][ids[3]] == {
-            "base_points": 30, "doublings": 0, "final_points": 30, "payment_delta": 120,
+            "wind": "north", "base_points": 30, "doublings": 0, "final_points": 30, "payment_delta": 120,
         }
         assert done["new_totals"] == dict(zip(ids, [-60, -30, -30, 120]))
         assert done["next_round_winds"] == dict(zip(ids, ["north", "east", "south", "west"]))
@@ -299,6 +300,51 @@ def test_ws_full_round():
         assert nxt["current_round"]["id"] != rnd["id"] and nxt["current_round"]["submissions"] == {}
         assert [p["wind"] for p in nxt["players"]] == ["north", "east", "south", "west"]
         assert [p["total_score"] for p in nxt["players"]] == [-60, -30, -30, 120]
+
+
+LOSER_4 = {"sets": [{"size": 3, "concealed": True, "major": False}]}  # 4p
+LOSER_8 = {"sets": [{"size": 3, "concealed": True, "major": True}]}  # 8p
+
+
+def _play(socks, rnd, inputs):
+    """Alla fyra lämnar in. Returnerar (round_complete, följande lobby_update)."""
+    for i, (ws, inp) in enumerate(zip(socks, inputs)):
+        _submit(ws, rnd, inp)
+        if i < 3:
+            _all(socks, "lobby_update")
+    return _all(socks, "round_complete"), _all(socks, "lobby_update")
+
+
+def test_ws_last_round_live_equals_reload():
+    client = TestClient(app.main.app)
+    with ExitStack() as stack:
+        code, socks, ids, msg = _start(client, stack)
+        assert msg["last_round"] is None
+
+        # Rond 1: D (nord) vinner 30p. A (öst) 4p, B 2p, C 8p, så förlorarna gör upp och Öst dubblas.
+        done, nxt = _play(socks, msg["current_round"], (LOSER_4, LOSER, LOSER_8, WINNER))
+        deltas = [done["payments"][i]["payment_delta"] for i in ids]
+        assert deltas == [-64, -40, -16, 120] and sum(deltas) == 0
+        assert [done["payments"][i]["wind"] for i in ids] == ["east", "south", "west", "north"]
+        live = {k: v for k, v in done.items() if k != "type"}
+        assert nxt["last_round"] == live
+
+        # Omladdning: samma resultat.
+        socks[1].close()
+        _all([socks[0], socks[2], socks[3]], "lobby_update")
+        b = stack.enter_context(client.websocket_connect("/ws"))
+        _join(b, code, "b")
+        socks[1] = b
+        assert _all(socks, "lobby_update")["last_round"] == live
+
+        # Rond 2: B är nu Öst och vinner. Vindarna står kvar, last_round byter till rond 2.
+        done2, nxt2 = _play(socks, nxt["current_round"], (LOSER, WINNER, LOSER_4, LOSER_8))
+        assert done2["round_number"] == 2 and done2["winner_id"] == ids[1]
+        deltas2 = [done2["payments"][i]["payment_delta"] for i in ids]
+        assert deltas2 == [-68, 180, -62, -50] and sum(deltas2) == 0
+        assert nxt2["last_round"] == {k: v for k, v in done2.items() if k != "type"}
+        assert nxt2["last_round"]["new_totals"] == dict(zip(ids, [-132, 140, -78, 70]))
+        assert nxt2["last_round"]["next_round_winds"] == dict(zip(ids, ["north", "east", "south", "west"]))
 
 
 def test_ws_conflict_resolved():

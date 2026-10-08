@@ -26,6 +26,7 @@ import {
   type Conflict,
   type CurrentRound,
   type Player,
+  type RoundResult,
   type RoundSubmission,
   type Session,
   type Wind,
@@ -53,10 +54,13 @@ const STEP_NAME: Record<Step, string> = {
 // Noll utan tecken, annars alltid + eller − (Beslut 37).
 const signed = new Intl.NumberFormat('sv-SE', { signDisplay: 'exceptZero' }).format
 const tone = (n: number) => (n > 0 ? 'positive' : n < 0 ? 'negative' : '')
+const num = new Intl.NumberFormat('sv-SE').format
+// Rubriken får fokus när den byter mellan resultat och inmatning. Stabil funktion: körs bara vid mount.
+const focus = (el: HTMLElement | null) => el?.focus()
 
 export default function Game() {
   const { code = '' } = useParams()
-  const { nickname, players, gameStatus, currentRound, actionError, status, send } = useOutletContext<Session>()
+  const { nickname, players, gameStatus, currentRound, lastRound, actionError, status, send } = useOutletContext<Session>()
   const me = players.find((p) => p.nickname.toLowerCase() === nickname.toLowerCase())
   const [draft, setDraft] = useState(emptyDraft)
   const [step, setStep] = useState<Step>(1)
@@ -64,6 +68,7 @@ export default function Game() {
   const [sent, setSent] = useState<Submission | null>(null) // väntar på svar från servern
   const [editing, setEditing] = useState(false) // ändrar en inlämning som redan gäller
   const [missedRound, setMissedRound] = useState<number | null>(null)
+  const [dismissed, setDismissed] = useState<string | null>(null) // round_id för resultatet jag klickat bort
   const mine = me ? currentRound?.submissions[me.id] : undefined
 
   // Ny rond eller första laddningen: fyll i från min inlämning om den finns, annars tomt.
@@ -90,6 +95,9 @@ export default function Game() {
   if (!currentRound || !me?.wind) return null
 
   const round = currentRound
+  // Resultatet visas tills jag klickar "Nästa rond" eller lämnar in i nästa rond. Inget sparas lokalt,
+  // så en omladdning före inlämning visar det igen.
+  const result = lastRound && !mine && dismissed !== lastRound.round_id ? lastRound : null
   const steps = draft.outcome ? STEPS[draft.outcome] : null
   const next = () => steps && setStep(steps[steps.indexOf(step) + 1])
   const back = () => steps && setStep(steps[steps.indexOf(step) - 1])
@@ -110,11 +118,24 @@ export default function Game() {
   return (
     <div className="game">
       <header>
-        <p className="muted">
-          Rond {round.round_number} · Din vind: {WIND_NAME[me.wind]}
-        </p>
-        <h1>{STEP_NAME[step]}</h1>
-        {steps && step !== 'waiting' && (
+        {result ? (
+          <>
+            <p className="muted">Rondens vind: {WIND_NAME[result.round_wind]}</p>
+            <h1 key="result" ref={focus} tabIndex={-1}>
+              Rond {result.round_number} avslutad
+            </h1>
+          </>
+        ) : (
+          <>
+            <p className="muted">
+              Rond {round.round_number} · Din vind: {WIND_NAME[me.wind]}
+            </p>
+            <h1 key="entry" ref={focus} tabIndex={-1}>
+              {STEP_NAME[step]}
+            </h1>
+          </>
+        )}
+        {!result && steps && step !== 'waiting' && (
           <p className="muted">
             Steg {steps.indexOf(step) + 1} av {steps.length}
           </p>
@@ -129,7 +150,9 @@ export default function Game() {
         </p>
       )}
 
-      {step === 1 ? (
+      {result ? (
+        <ResultView result={result} players={players} meId={me.id} onNext={() => setDismissed(result.round_id)} />
+      ) : step === 1 ? (
         <BaseView draft={draft} setDraft={setDraft} wind={me.wind} onNext={next} />
       ) : step === 2 ? (
         <DoublingsView
@@ -169,6 +192,67 @@ export default function Game() {
         mine && <WaitingView mine={mine} wind={me.wind} round={round} players={players} meId={me.id} onEdit={edit} />
       )}
     </div>
+  )
+}
+
+type ResultProps = { result: RoundResult; players: Player[]; meId: string; onNext: () => void }
+
+// Rondresultatet. Allt kommer från servern (last_round), inget räknas här.
+function ResultView({ result, players, meId, onNext }: ResultProps) {
+  const winner = players.find((p) => p.id === result.winner_id)
+  const draw = !winner
+  return (
+    <>
+      <p className="result-outcome">
+        {winner ? `${winner.nickname} vann med Mahjong.` : 'Oavgjort. Inga poäng, vindarna står kvar.'}
+      </p>
+      <div className="table-scroll">
+        <table className="result-table">
+          <thead>
+            <tr>
+              <th scope="col">Spelare</th>
+              <th scope="col">Vind i ronden</th>
+              <th scope="col" className="num">Baspoäng</th>
+              <th scope="col" className="num">Dubblingar</th>
+              <th scope="col" className="num">Slutpoäng</th>
+              <th scope="col" className="num">Betalning</th>
+              <th scope="col" className="num">Ny total</th>
+              <th scope="col">Nästa vind</th>
+            </tr>
+          </thead>
+          <tbody>
+            {players.map((p) => {
+              const pay = result.payments[p.id]
+              const total = result.new_totals[p.id]
+              return (
+                <tr key={p.id}>
+                  <th scope="row">
+                    {p.nickname}
+                    {p.id === meId && <span className="muted"> (du)</span>}
+                    {p === winner && <span className="tag">Mahjong</span>}
+                  </th>
+                  <td>{WIND_NAME[pay.wind]}</td>
+                  <td className="num mono">{draw ? '–' : num(pay.base_points)}</td>
+                  <td className="num mono">{draw ? '–' : pay.doublings}</td>
+                  <td className="num mono">{draw ? '–' : num(pay.final_points)}</td>
+                  <td className={`num mono big ${tone(pay.payment_delta)}`}>{signed(pay.payment_delta)}</td>
+                  <td className={`num mono big ${tone(total)}`}>{signed(total)}</td>
+                  <td>{WIND_NAME[result.next_round_winds[p.id]]}</td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+      <p className="muted">
+        Betalningar till och från Öst dubblas. Förlorarna gör upp sinsemellan. Summan av alla betalningar är 0.
+      </p>
+      <div className="actions">
+        <button className="primary" onClick={onNext}>
+          Nästa rond
+        </button>
+      </div>
+    </>
   )
 }
 

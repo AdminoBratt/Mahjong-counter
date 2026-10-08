@@ -151,3 +151,8 @@ Användaren anger drak- och vind-3tal. Blommor och årstider visas utifrån Vy 1
 37. Poäng och totaler visas med tecken (+/−). Noll visas utan tecken.
 38. Spelvyns huvud visar ställningen: varje spelares namn, vind och total, direkt från `players` i `lobby_update`.
 39. Nästa rond startas med en knapp "Nästa rond" hos varje spelare, inte automatiskt (3.8b).
+40. Klienten läser rondresultatet bara från `last_round` i `lobby_update`, både live och efter omladdning. `round_complete` skickas kvar men används inte av klienten.
+41. Resultatvyn visar vem som vann (eller oavgjort), rondens vind och en tabell i sätesordning: spelare, vind i ronden, baspoäng, dubblingar (antal), slutpoäng, betalning, ny total och nästa vind. Den egna raden märks "(du)", vinnaren "Mahjong". Betalning och ny total visas stort med tecken (Beslut 37).
+42. Vid oavgjort visas baspoäng, dubblingar och slutpoäng som "–" och betalningen som 0 (Beslut 13).
+43. Under tabellen står alltid: "Betalningar till och från Öst dubblas. Förlorarna gör upp sinsemellan. Summan av alla betalningar är 0."
+44. Resultatet visas tills spelaren klickar "Nästa rond" eller har lämnat in i nästa rond. Valet sparas inte: en omladdning före inlämning visar resultatet igen, en omladdning efter inlämning visar väntläget.

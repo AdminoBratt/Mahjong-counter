@@ -26,6 +26,19 @@ export type CurrentRound = {
   conflict: Conflict | null
   submissions: Record<string, RoundSubmission>
 }
+// Senast avslutade ronden, från lobby_update. Samma innehåll live och efter omladdning.
+export type RoundResult = {
+  round_id: string
+  round_number: number
+  round_wind: Wind
+  winner_id: string | null // null = oavgjort
+  payments: Record<
+    string,
+    { wind: Wind; base_points: number; doublings: number; final_points: number; payment_delta: number }
+  >
+  new_totals: Record<string, number>
+  next_round_winds: Record<string, Wind>
+}
 export type Status = 'connecting' | 'open' | 'closed' | { error: string }
 
 export const WINDS: [Wind, string][] = [
@@ -45,6 +58,7 @@ export function useLobby(code: string) {
   const [players, setPlayers] = useState<Player[]>([])
   const [gameStatus, setGameStatus] = useState<GameStatus | null>(null) // null tills första lobby_update
   const [currentRound, setCurrentRound] = useState<CurrentRound | null>(null)
+  const [lastRound, setLastRound] = useState<RoundResult | null>(null)
   // Fel på ett meddelande efter join (t.ex. submit_score). Socketen lever vidare.
   const [actionError, setActionError] = useState<{ code: string; message: string } | null>(null)
   const wsRef = useRef<WebSocket | null>(null)
@@ -67,6 +81,7 @@ export function useLobby(code: string) {
         setPlayers(msg.players)
         setGameStatus(msg.status)
         setCurrentRound(msg.current_round)
+        setLastRound(msg.last_round) // round_complete ignoreras: last_round är en kodväg för live och omladdning
         setStatus('open')
       } else if (msg.type === 'error' && joined) {
         setActionError({ code: msg.code, message: msg.message })
@@ -98,7 +113,7 @@ export function useLobby(code: string) {
     setAttempt((n) => n + 1)
   }
 
-  return { nickname, players, gameStatus, currentRound, actionError, status, send, reconnect }
+  return { nickname, players, gameStatus, currentRound, lastRound, actionError, status, send, reconnect }
 }
 
 // Det som layout-routen skickar till Lobby och Game. Barnen renderas först när gameStatus är satt.

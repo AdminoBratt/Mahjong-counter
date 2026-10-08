@@ -50,4 +50,5 @@ payment_delta   int   # netto efter betalningar (kan vara negativt)
 did_mahjong     bool = False
 draw            bool = False  # spelaren har valt oavgjort
 score_input     dict  # rådata från spelarens inmatning
+wind            Wind  # spelarens vind i ronden (GamePlayer.wind har roterats när ronden avslutats)
 ```

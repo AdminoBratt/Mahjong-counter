@@ -17,15 +17,18 @@ CLIENT → SERVER:
 
 SERVER → CLIENT (broadcast till alla i lobby):
   lobby_update      { status, players: [{ id, nickname, seat_order, connected, wind, total_score }],
-                      current_round }
+                      current_round, last_round }
                     # status: 'waiting' | 'active' | 'finished', wind: null tills vald
                     # current_round: null tills spelet startat, annars
                     #   { id, round_number, round_wind,   # round_wind är alltid 'east' tills vidare
                     #     conflict,                       # null | 'no_mahjong' | 'multiple_mahjong' | 'draw_disagreement'
                     #     submissions: { <player_id>: { draw, score_input,       # bara de som lämnat in
                     #                                   base_points, doublings, final_points } } }
-  round_complete    { round_id, round_number, winner_id,   # winner_id null = oavgjort
-                      payments: { <player_id>: { base_points, doublings, final_points, payment_delta } },
+                    # last_round: null tills första ronden avslutats, annars senast avslutade ronden
+                    #   med samma fält som round_complete (utan type)
+  round_complete    { round_id, round_number, round_wind, winner_id,   # winner_id null = oavgjort
+                      payments: { <player_id>: { wind,   # spelarens vind i ronden
+                                                 base_points, doublings, final_points, payment_delta } },
                       new_totals: { <player_id>: int },
                       next_round_winds: { <player_id>: wind } }
   game_over         { final_standings, history }   # inte implementerat ännu
@@ -48,6 +51,8 @@ Efter `join_lobby` gäller:
   inlämningen; klienten visar dem som de är och räknar inget själv.
 - När ronden avslutas skickas `round_complete` först och sedan `lobby_update` med nästa rond.
   Kan ronden inte avslutas trots fyra inlämningar visas orsaken i `current_round.conflict`.
+- `last_round` byggs av samma funktion som `round_complete`, så resultatet är identiskt live och efter
+  omladdning. Klienten läser bara `last_round`; `round_complete` skickas kvar för protokollet.
 - Ogiltiga meddelanden (inte JSON, inte ett objekt, okänd `type`, binär ram, `choose_wind` med
   ogiltig vind) ignoreras. Socketen stängs inte och inget svar skickas.
 
