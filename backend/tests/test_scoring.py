@@ -1,6 +1,6 @@
 import pytest
 
-from app.scoring import score
+from app.scoring import score, settle
 
 
 def pong(major=False, concealed=False, size=3):
@@ -143,3 +143,58 @@ def test_full_hand():
 def test_invalid_input(raw, seat):
     with pytest.raises(ValueError):
         score(raw, seat, "east")
+
+
+def pay(points, winner, east="Ö"):
+    delta = settle(points, winner, east)
+    assert sum(delta.values()) == 0
+    return delta
+
+
+@pytest.mark.parametrize(
+    "points, winner, expected",
+    [
+        # Exemplet i spelregler.md: Nordan vinner.
+        ({"N": 48, "Ö": 24, "S": 8, "V": 32}, "N", {"N": 192, "Ö": -80, "V": -8, "S": -104}),
+        # Öst vinner: alla betalar dubbelt, förlorarna gör upp utan dubblering.
+        ({"Ö": 10, "S": 4, "V": 6, "N": 2}, "Ö", {"Ö": 60, "S": -20, "V": -14, "N": -26}),
+        # Vanlig förlorare vinner.
+        ({"S": 10, "Ö": 6, "V": 4, "N": 2}, "S", {"S": 40, "Ö": -8, "V": -12, "N": -20}),
+        # Två lika förlorare utan Öst.
+        ({"N": 10, "Ö": 2, "S": 6, "V": 6}, "N", {"N": 40, "Ö": -36, "S": -2, "V": -2}),
+        # Två lika förlorare där den ena är Öst.
+        ({"N": 10, "Ö": 6, "S": 6, "V": 2}, "N", {"N": 40, "Ö": -12, "S": -6, "V": -22}),
+        # Förlorare (V) med fler poäng än vinnaren betalar ändå vinnarens poäng.
+        ({"S": 4, "Ö": 2, "V": 10, "N": 0}, "S", {"S": 16, "Ö": -20, "V": 22, "N": -18}),
+        # Oavgjort: inga betalningar.
+        ({"N": 48, "Ö": 24, "S": 8, "V": 32}, None, {"N": 0, "Ö": 0, "S": 0, "V": 0}),
+    ],
+)
+def test_settle(points, winner, expected):
+    assert pay(points, winner) == expected
+
+
+@pytest.mark.parametrize("east", ["Ö", "S", "V", "N"])
+@pytest.mark.parametrize("winner", ["Ö", "S", "V", "N", None])
+def test_settle_all_winners_and_easts(winner, east):
+    delta = pay({"Ö": 24, "S": 8, "V": 32, "N": 48}, winner, east)
+    assert all(type(d) is int for d in delta.values())
+    if winner:
+        assert delta[winner] >= 0
+
+
+@pytest.mark.parametrize(
+    "points, winner, east",
+    [
+        ({"Ö": 1, "S": 1, "V": 1}, "Ö", "Ö"),
+        ({"Ö": 1, "S": 1, "V": 1, "N": 1, "X": 1}, "Ö", "Ö"),
+        ({"Ö": 1, "S": 1, "V": 1, "N": 1}, "X", "Ö"),
+        ({"Ö": 1, "S": 1, "V": 1, "N": 1}, "Ö", "X"),
+        ({"Ö": 1, "S": -1, "V": 1, "N": 1}, "Ö", "Ö"),
+        ({"Ö": 1, "S": 1.5, "V": 1, "N": 1}, "Ö", "Ö"),
+        ({"Ö": 1, "S": True, "V": 1, "N": 1}, "Ö", "Ö"),
+    ],
+)
+def test_settle_invalid_input(points, winner, east):
+    with pytest.raises(ValueError):
+        settle(points, winner, east)

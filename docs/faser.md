@@ -18,7 +18,7 @@ Ingen databas: spelstate hålls i minnet (se CLAUDE.md). Ingen historik eller st
 
 ## Fas 3 — Poänginmatning
 - [x] **3.1** Backend: Poängberäkningsmodul (baspoäng + dubblingar)
-- [ ] **3.2** Backend: Betalningslogik
+- [x] **3.2** Backend: Betalningslogik
 - [ ] **3.3** Backend: Vindrotationslogik
 - [ ] **3.4** API + WebSocket: `submit_score`, `round_complete`
 - [ ] **3.5** UI: Vy 1, Baspoäng (desktop-optimerad)

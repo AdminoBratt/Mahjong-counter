@@ -1,6 +1,7 @@
 """Poängberäkning för en spelare i en rond. Regler: docs/spelregler.md."""
 
 from dataclasses import dataclass
+from itertools import combinations
 from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -104,3 +105,31 @@ def _check(s: ScoreInput, seat_wind: Wind, round_wind: Wind) -> None:
         raise ValueError("Enbart 1or/9or/drakar/vindar men handen har annat")
     if m.two_dragons_pair and (s.dragon_sets < 2 or not s.scoring_pair):
         raise ValueError("Två drakar + par kräver två drak-3tal och poänggivande par")
+
+
+def settle(points: dict[str, int], winner: str | None, east: str) -> dict[str, int]:
+    """payment_delta per spelare. winner=None betyder oavgjort. Kastar ValueError vid ogiltig inmatning."""
+    if len(points) != 4:
+        raise ValueError("Exakt fyra spelare")
+    if winner is not None and winner not in points:
+        raise ValueError("Okänd vinnare")
+    if east not in points:
+        raise ValueError("Okänd Öst-spelare")
+    if any(type(p) is not int or p < 0 for p in points.values()):
+        raise ValueError("Poäng måste vara heltal >= 0")
+
+    delta = dict.fromkeys(points, 0)
+    if winner is None:
+        return delta
+    for a, b in combinations(points, 2):
+        if winner in (a, b):
+            payee, payer = (a, b) if a == winner else (b, a)
+            amount = points[winner]
+        else:
+            payee, payer = (a, b) if points[a] >= points[b] else (b, a)
+            amount = points[payee] - points[payer]
+        if east in (a, b):
+            amount *= 2
+        delta[payee] += amount
+        delta[payer] -= amount
+    return delta
