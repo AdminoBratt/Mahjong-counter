@@ -29,6 +29,7 @@ Ingen databas: spelstate hålls i minnet (se CLAUDE.md). Ingen historik eller st
 - [ ] **3.6** UI: Vy 2, Allmänna dubblingar
 - [ ] **3.7** UI: Vy 3, Mahjong-dubblingar (konditionell)
 - [ ] **3.8** UI: Bekräftelseskärm med uträkning + betalningar
+  - Kom ihåg: testa att en omladdning mitt i en rond fyller i formuläret igen från serverns `submissions` (egen inlämning, även oavgjort).
 
 ## Fas 4 — Spelvy (realtid)
 - [ ] **4.1** UI: Aktiv spelvy (totalpoäng per spelare, aktuell vind, rondnummer)
