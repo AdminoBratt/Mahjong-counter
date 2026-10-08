@@ -122,3 +122,9 @@ Systemet föreslår dubblingar automatiskt utifrån Vy 1. Användaren bekräftar
 8. "Enbart 1or/9or/drakar/vindar" och "ingen följd" gäller båda (2×).
 9. Inget poängtak och ingen avrundning.
 10. Vinnaren måste ha exakt fyra grupper (följder + 3tal/4tal), övriga högst fyra.
+11. En förlorare med fler poäng än vinnaren betalar ändå vinnarens poäng fullt ut och får inget av vinnaren.
+12. Två förlorare med lika poäng betalar ingenting till varandra, även om den ena är Öst.
+13. Vid oavgjort ignoreras poängen helt, men alla fyra spelare måste ändå finnas med.
+14. Vinnarens poäng påverkar inte förlorarnas uppgörelse sinsemellan, eftersom vinnaren inte deltar där.
+15. Öst-spelaren anges med spelar-id till betalningslogiken, inte genom allas vindar.
+16. Betalningslogiken (`settle`) ligger i `backend/app/scoring.py`, ingen egen modul.
