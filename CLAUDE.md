@@ -62,6 +62,7 @@ Om spelreglerna är oklara: fråga mig, gissa inte.
 - Backend (från `backend/`): `uvicorn app.main:app --reload`
 - Backend-tester (från `backend/`): `pytest`
 - Frontend (från `frontend/`): `npm run dev`
+- Frontend-tester för rena funktioner (från `frontend/`): `npm test` (Vitest, ingen DOM)
 - Produktionsimage lokalt (från roten): `docker build -t mahjong-tracker .` och
   `docker run -e PORT=8080 -p 8080:8080 mahjong-tracker`, sedan http://localhost:8080
 

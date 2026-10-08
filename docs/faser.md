@@ -25,7 +25,7 @@ Ingen databas: spelstate hålls i minnet (se CLAUDE.md). Ingen historik eller st
   - [x] **3.4b** WebSocket: `submit_score`, `round_complete`, `current_round` i `lobby_update`, lås per lobby
     - Kom ihåg: test att `round_complete` kommer före nya `lobby_update`; tillfälligt skript (committas inte)
       som spelar en rond med fyra spelare mot en riktig server.
-- [ ] **3.5** UI: Vy 1, Baspoäng (desktop-optimerad)
+- [x] **3.5** UI: Vy 1, Baspoäng (desktop-optimerad)
 - [ ] **3.6** UI: Vy 2, Allmänna dubblingar
 - [ ] **3.7** UI: Vy 3, Mahjong-dubblingar (konditionell)
 - [ ] **3.8** UI: Bekräftelseskärm med uträkning + betalningar
