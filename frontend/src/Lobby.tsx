@@ -1,75 +1,17 @@
-import { useEffect, useRef, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { useState } from 'react'
+import { Navigate, useOutletContext, useParams } from 'react-router-dom'
 
-import { WS_URL } from './api.ts'
-
-// Efter dessa koder går det inte att gå med igen med samma kod/namn.
-const STALE_SESSION_CODES = ['unknown_lobby', 'game_full', 'game_started', 'invalid_nickname']
-
-type Wind = 'east' | 'south' | 'west' | 'north'
-type Player = { id: string; nickname: string; seat_order: number; connected: boolean; wind: Wind | null }
-type Status = 'connecting' | 'open' | 'closed' | { error: string }
-
-const WINDS: [Wind, string][] = [
-  ['east', 'Öst'],
-  ['south', 'Syd'],
-  ['west', 'Väst'],
-  ['north', 'Nord'],
-]
-const WIND_NAME = Object.fromEntries(WINDS) as Record<Wind, string>
+import { WINDS, WIND_NAME, type Player, type Session, type Wind } from './useLobby.ts'
 
 export default function Lobby() {
   const { code = '' } = useParams()
-  // Läses en gång, så att felmeddelandet syns kvar när sessionen rensas nedan.
-  const [nickname] = useState(() =>
-    sessionStorage.getItem('lobby_code') === code ? sessionStorage.getItem('nickname') : null,
-  )
-  const [players, setPlayers] = useState<Player[]>([])
-  const [gameStatus, setGameStatus] = useState<'waiting' | 'active' | 'finished'>('waiting')
-  const wsRef = useRef<WebSocket | null>(null)
-  const [status, setStatus] = useState<Status>('connecting')
-  const [attempt, setAttempt] = useState(0)
+  const { nickname, players, gameStatus, status, send } = useOutletContext<Session>()
   const [copied, setCopied] = useState<'ok' | 'fail' | null>(null)
 
-  useEffect(() => {
-    if (!nickname) return
-    let current = true // false efter cleanup, så gamla sockets (t.ex. StrictMode) ignoreras
-    let gotError = false
-    const ws = new WebSocket(WS_URL)
-    wsRef.current = ws
-    ws.onopen = () => ws.send(JSON.stringify({ type: 'join_lobby', lobby_code: code, nickname }))
-    ws.onmessage = (e) => {
-      if (!current) return
-      const msg = JSON.parse(e.data)
-      if (msg.type === 'lobby_update') {
-        setPlayers(msg.players)
-        setGameStatus(msg.status)
-        setStatus('open')
-      } else if (msg.type === 'error') {
-        gotError = true
-        if (STALE_SESSION_CODES.includes(msg.code)) {
-          sessionStorage.removeItem('lobby_code')
-          sessionStorage.removeItem('nickname')
-        }
-        setStatus({ error: msg.message })
-      }
-    }
-    ws.onclose = () => {
-      if (current && !gotError) setStatus('closed')
-    }
-    return () => {
-      current = false
-      ws.close()
-    }
-  }, [code, nickname, attempt])
+  if (gameStatus !== 'waiting') return <Navigate to={`/game/${code}`} replace />
 
   function chooseWind(wind: Wind) {
-    wsRef.current?.send(JSON.stringify({ type: 'choose_wind', wind }))
-  }
-
-  function reconnect() {
-    setStatus('connecting')
-    setAttempt((n) => n + 1)
+    send({ type: 'choose_wind', wind })
   }
 
   async function copyCode() {
@@ -81,21 +23,10 @@ export default function Lobby() {
     }
   }
 
-  if (!nickname) {
-    return (
-      <div className="lobby">
-        <h1>Lobby <span className="mono">{code}</span></h1>
-        <p>Du har inte gått med i den här lobbyn.</p>
-        <Link to="/">Gå med via startsidan</Link>
-      </div>
-    )
-  }
-
   const seats = [1, 2, 3, 4].map((i) => players.find((p) => p.seat_order === i))
   const missing = 4 - players.length
   const isMe = (p: Player) => p.nickname.toLowerCase() === nickname.toLowerCase()
   const chosen = players.filter((p) => p.wind).length
-  const started = gameStatus !== 'waiting'
 
   return (
     <div className="lobby">
@@ -135,8 +66,8 @@ export default function Lobby() {
       </ol>
 
       {missing === 0 && (
-        <fieldset className="winds" disabled={started || status !== 'open'}>
-          <legend>{started ? 'Startvindar' : 'Välj din startvind'}</legend>
+        <fieldset className="winds" disabled={status !== 'open'}>
+          <legend>Välj din startvind</legend>
           {WINDS.map(([wind, name]) => {
             const owner = players.find((p) => p.wind === wind)
             const mine = owner !== undefined && isMe(owner)
@@ -161,27 +92,11 @@ export default function Lobby() {
       )}
 
       <p role="status" aria-atomic="true">
-        {status === 'connecting' && 'Ansluter…'}
         {status === 'open' &&
           (missing > 0
             ? `${players.length} av 4 spelare. Väntar på ${missing} till.`
-            : started
-              ? 'Alla vindar valda. Spelet startar.'
-              : `Välj startvind. ${chosen} av 4 har valt.`)}
+            : `Välj startvind. ${chosen} av 4 har valt.`)}
       </p>
-
-      {status === 'closed' && (
-        <div role="alert" className="lobby-problem">
-          <p className="error">Du är ansluten i en annan flik, eller anslutningen bröts.</p>
-          <button className="primary" onClick={reconnect}>Anslut igen</button>
-        </div>
-      )}
-      {typeof status === 'object' && (
-        <div role="alert" className="lobby-problem">
-          <p className="error">{status.error}</p>
-          <Link to="/">Till startsidan</Link>
-        </div>
-      )}
     </div>
   )
 }

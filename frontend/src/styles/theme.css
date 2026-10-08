@@ -138,7 +138,9 @@ button:disabled {
 }
 
 .start,
-.lobby {
+.lobby,
+.game,
+.session-message {
   display: flex;
   flex-direction: column;
   gap: 24px;
@@ -173,7 +175,11 @@ button:disabled {
 }
 
 .lobby h1,
-.lobby p {
+.lobby p,
+.game h1,
+.game p,
+.session-message h1,
+.session-message p {
   margin: 0;
 }
 
@@ -225,11 +231,10 @@ button:disabled {
   color: var(--positive);
 }
 
-.lobby-problem {
-  display: flex;
-  flex-direction: column;
+.session-message {
   align-items: flex-start;
   gap: 12px;
+  margin-bottom: 24px;
 }
 
 .winds {
