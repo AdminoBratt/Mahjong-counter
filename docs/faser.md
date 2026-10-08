@@ -27,7 +27,7 @@ Ingen databas: spelstate hålls i minnet (se CLAUDE.md). Ingen historik eller st
       som spelar en rond med fyra spelare mot en riktig server.
 - [x] **3.5** UI: Vy 1, Baspoäng (desktop-optimerad)
 - [x] **3.6** UI: Vy 2, Allmänna dubblingar
-- [ ] **3.7** UI: Vy 3, Mahjong-dubblingar (konditionell)
+- [x] **3.7** UI: Vy 3, Mahjong-dubblingar (konditionell)
 - [ ] **3.8** UI: Bekräftelseskärm med uträkning + betalningar
   - Kom ihåg: testa att en omladdning mitt i en rond fyller i formuläret igen från serverns `submissions` (egen inlämning, även oavgjort).
 

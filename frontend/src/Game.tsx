@@ -8,9 +8,12 @@ import {
   groups,
   groupsError,
   honorsError,
+  mahjongBlocked,
+  mahjongError,
   majors,
   toSubmission,
   type Draft,
+  type MahjongDoubling,
   type Outcome,
 } from './draft.ts'
 import { WINDS, WIND_NAME, type Session, type Wind } from './useLobby.ts'
@@ -81,9 +84,11 @@ export default function Game() {
           onNext={next}
           onBack={back}
         />
+      ) : step === 3 ? (
+        <MahjongView draft={draft} setDraft={setDraft} wind={me.wind} onNext={next} onBack={back} />
       ) : (
         <>
-          <p>{step === 'confirm' ? 'Bekräftelsen byggs i steg 3.8.' : `Vyn byggs i steg 3.${step + 4}.`}</p>
+          <p>Bekräftelsen byggs i steg 3.8.</p>
           <div className="actions">
             <button className="secondary" onClick={back}>Tillbaka</button>
           </div>
@@ -101,6 +106,8 @@ export default function Game() {
     </div>
   )
 }
+
+const yesNo = (b: boolean) => (b ? 'Ja' : 'Nej')
 
 type ViewProps = {
   draft: Draft
@@ -291,7 +298,6 @@ function DoublingsView({
   const none = maxDragons === 0
   const error = honorsError(draft, sameWind)
   const tiles = bonusTiles(draft, wind)
-  const yesNo = (b: boolean) => (b ? 'Ja' : 'Nej')
 
   const windOptions: [string, boolean, (on: boolean) => Partial<Draft>][] = sameWind
     ? [
@@ -370,6 +376,73 @@ function DoublingsView({
           <p>Alla 4 årstider: {yesNo(tiles.allSeasons)}</p>
           <p>Alla 8: {yesNo(tiles.allEight)}</p>
           <p className="muted">Räknas från Baspoäng. Gå tillbaka dit för att ändra.</p>
+        </section>
+      </div>
+
+      <div className="actions">
+        <button className="secondary" onClick={onBack}>
+          Tillbaka
+        </button>
+        <button className="primary" disabled={error !== null} onClick={onNext}>
+          Nästa
+        </button>
+      </div>
+    </>
+  )
+}
+
+const MAHJONG_DOUBLINGS: [MahjongDoubling, string][] = [
+  ['only_majors', 'Enbart 1or, 9or, drakar och vindar'],
+  ['one_suit', 'Hela handen (utom paret) från en och samma serie'],
+  ['two_dragons_pair', '3tal/4tal i två drakar + par i den tredje'],
+]
+
+// Vy 3, bara för vinnaren. Dragning och "ingen följd" härleds från tidigare vyer och visas bara.
+// En spärrad ruta som redan är ikryssad förblir klickbar så att den kan kryssas ur (Beslut 31).
+function MahjongView({ draft, setDraft, onNext, onBack }: ViewProps & { onBack: () => void }) {
+  const blocked = mahjongBlocked(draft)
+  const error = mahjongError(draft)
+  const m = draft.mahjong
+
+  return (
+    <>
+      <div className="score-grid">
+        <section className="card" aria-labelledby="mahjong-doublings-heading">
+          <h2 id="mahjong-doublings-heading">Mahjong-dubblingar</h2>
+          <fieldset className="options">
+            <legend>Gäller din hand?</legend>
+            {MAHJONG_DOUBLINGS.map(([key, label]) => {
+              const reason = blocked[key]
+              const stale = reason !== null && m[key]
+              return (
+                <div key={key} className="field">
+                  <label className="option">
+                    <input
+                      type="checkbox"
+                      checked={m[key]}
+                      disabled={reason !== null && !m[key]}
+                      aria-invalid={stale}
+                      aria-describedby={reason ? `${key}-reason` : undefined}
+                      onChange={(e) => setDraft((d) => ({ ...d, mahjong: { ...d.mahjong, [key]: e.target.checked } }))}
+                    />
+                    {label}
+                  </label>
+                  {reason && (
+                    <p id={`${key}-reason`} className={stale ? 'error' : 'muted'}>
+                      {reason}
+                    </p>
+                  )}
+                </div>
+              )
+            })}
+          </fieldset>
+        </section>
+
+        <section className="card" aria-labelledby="hand-heading">
+          <h2 id="hand-heading">Din hand</h2>
+          <p>Vann genom dragning från muren: {yesNo(m.from_wall || m.loose_tile)}</p>
+          <p>Ingen följd i handen: {yesNo(draft.chows === 0)}</p>
+          <p className="muted">Räknas från Baspoäng (lös bricka räknas också som dragning). Gå tillbaka dit för att ändra.</p>
         </section>
       </div>
 

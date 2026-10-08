@@ -105,6 +105,39 @@ export function honorsError(d: Draft, sameWind: boolean): string | null {
   return null
 }
 
+export type MahjongDoubling = 'only_majors' | 'one_suit' | 'two_dragons_pair'
+
+// Samma regler som backend (_check i scoring.py, Beslut 7, 29, 30). null = tillåten, annars skälet.
+export function mahjongBlocked(d: Draft): Record<MahjongDoubling, string | null> {
+  const m = d.mahjong
+  return {
+    only_majors:
+      d.chows > 0 || majors(d) !== d.sets.length
+        ? 'Kräver att alla fyra grupper är 3tal/4tal i 1, 9, vind, drake (Baspoäng).'
+        : m.one_suit
+          ? 'Kan inte kombineras med En serie: en serie har bara två ytterbrickor.'
+          : null,
+    // Täcker bara drak- och vind-3tal som angetts i Allmänna dubblingar (Beslut 29).
+    one_suit:
+      d.dragon_sets + d.round_wind_sets + d.own_wind_sets > 0
+        ? 'Kan inte kombineras med drak- eller vind-3tal (Allmänna dubblingar).'
+        : m.only_majors
+          ? 'Kan inte kombineras med Enbart 1or, 9or, drakar och vindar: en serie har bara två ytterbrickor.'
+          : null,
+    two_dragons_pair:
+      d.dragon_sets < 2 || !d.scoring_pair
+        ? 'Kräver minst 2 drak-3tal (Allmänna dubblingar) och ett poänggivande par (Baspoäng).'
+        : null,
+  }
+}
+
+// En ruta som kryssats men inte längre är tillåten, t.ex. efter en ändring i en tidigare vy.
+export function mahjongError(d: Draft): string | null {
+  const blocked = mahjongBlocked(d)
+  const key = (Object.keys(blocked) as MahjongDoubling[]).find((k) => d.mahjong[k] && blocked[k])
+  return key ? blocked[key] : null
+}
+
 const WIND_NUMBER: Record<Wind, number> = { east: 1, south: 2, west: 3, north: 4 }
 
 // Fakta om blommor och årstider att visa i Vy 2. Inga dubblingar räknas här, det gör backend.

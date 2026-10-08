@@ -104,6 +104,13 @@ def _check(s: ScoreInput, seat_wind: Wind, round_wind: Wind) -> None:
         raise ValueError("Enbart 1or/9or/drakar/vindar men handen har annat")
     if m.two_dragons_pair and (s.dragon_sets < 2 or not s.scoring_pair):
         raise ValueError("Två drakar + par kräver två drak-3tal och poänggivande par")
+    # Beslut 29: täcker bara drak- och vind-3tal som angetts i Vy 2. Ett 3tal i 1, 9, vind, drake
+    # som inte angetts där kan backend inte skilja från 1or/9or i serien.
+    if m.one_suit and s.dragon_sets + wind_sets:
+        raise ValueError("En serie men handen har drak- eller vind-3tal")
+    # Beslut 30: en serie har bara två ytterbrickor, så fyra grupper kan inte alla vara 1or/9or i den.
+    if m.one_suit and m.only_majors:
+        raise ValueError("En serie och enbart 1or/9or/drakar/vindar utesluter varandra")
 
 
 def settle(points: dict[str, int], winner: str | None, east: str) -> dict[str, int]:
