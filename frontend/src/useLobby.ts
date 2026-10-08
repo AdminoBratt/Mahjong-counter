@@ -5,6 +5,11 @@ import type { ScoreInput } from './draft.ts'
 
 // Efter dessa koder går det inte att gå med igen med samma kod/namn.
 const STALE_SESSION_CODES = ['unknown_lobby', 'game_full', 'game_started', 'game_finished', 'invalid_nickname']
+// Stängningskoder när servern städat bort spelet (docs/events.md).
+const REMOVED_MESSAGES: Record<number, string> = {
+  4000: 'Spelet är avslutat och har tagits bort från servern.',
+  4001: 'Spelet har tagits bort från servern efter en tids inaktivitet.',
+}
 
 export type Wind = 'east' | 'south' | 'west' | 'north'
 export type Player = {
@@ -113,8 +118,13 @@ export function useLobby(code: string) {
         setStatus({ error: msg.message })
       }
     }
-    ws.onclose = () => {
-      if (current && !gotError) setStatus('closed')
+    ws.onclose = (e) => {
+      if (!current) return
+      if (e.code in REMOVED_MESSAGES) {
+        sessionStorage.removeItem('lobby_code')
+        sessionStorage.removeItem('nickname')
+        setStatus({ error: REMOVED_MESSAGES[e.code] })
+      } else if (!gotError) setStatus('closed')
     }
     return () => {
       current = false

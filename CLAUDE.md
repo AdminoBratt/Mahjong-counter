@@ -75,6 +75,15 @@ CORS_ORIGINS=http://localhost:5173
 Behövs bara lokalt (Vite på :5173 är en annan origin). I produktion är sida, API och `/ws` samma
 origin, så inga variabler behövs. `PORT` sätts av Railway.
 
+Valfria, standardvärdena räcker (städning av spel, se docs/events.md):
+```
+CLEANUP_INTERVAL_SECONDS=60     # hur ofta städningen körs
+FINISHED_GAME_TTL_MINUTES=30    # avslutat spel, räknat från end_game
+WAITING_GAME_TTL_MINUTES=30     # väntande spel utan anslutna spelare
+IDLE_GAME_TTL_MINUTES=180       # pågående spel utan anslutna spelare
+MAX_IDLE_HOURS=24               # alla spel utan aktivitet, även med anslutna spelare
+```
+
 ## Referens (läs vid behov, inte hela tiden)
 - Faser och status: `docs/faser.md`
 - Spelregler, poäng, dubblingar, betalningar, UI-flöde: `docs/spelregler.md`
@@ -117,7 +126,9 @@ Medvetet uppskjutet, inte buggar.
   som skickar sist skrivit fel (t.ex. en extra nolla) kan felet inte rättas, eftersom ronden redan är avslutad.
   Riskerna minskas av att talet visas stort före inskick och av kontrollen för jämna tal.
 - Bara skaparen (plats 1) kan avsluta spelet. Kommer skaparen aldrig tillbaka går spelet inte att avsluta,
-  utan det står kvar tills städningen (4.5) tar bort det.
+  utan det står kvar tills städningen tar bort det (3 h utan anslutna spelare, annars 24 h utan aktivitet).
+- Ett pågående spel med en öppen flik tas bort först efter 24 h utan aktivitet (`MAX_IDLE_HOURS`). En lång paus
+  mellan ronder längre än så avbryter spelet.
 - En rond väntar på alla fyra, utan timeout. Kommer en frånkopplad spelare aldrig tillbaka står ronden still.
 
 ## Lärdomar
