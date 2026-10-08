@@ -8,7 +8,7 @@ from urllib.parse import urlsplit
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, StrictBool, StringConstraints, ValidationError
+from pydantic import BaseModel, StrictBool, StrictInt, StringConstraints, ValidationError, model_validator
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.store import Game, GameError, GameStore, Round, Wind
@@ -88,10 +88,24 @@ class ChooseWind(BaseModel):
 
 
 class SubmitScore(BaseModel):
+    """Antingen rådata (score_input) eller en slutpoäng som spelaren räknat själv (final_points + mahjong)."""
+
     type: Literal["submit_score"]
     round_id: uuid.UUID
-    score_input: dict
+    score_input: dict | None = None
+    final_points: StrictInt | None = None
+    mahjong: StrictBool = False  # bara med final_points; med rådata gäller score_input.mahjong
     draw: StrictBool = False
+
+    @model_validator(mode="after")
+    def _one_kind(self):
+        if (self.score_input is None) == (self.final_points is None):
+            raise ValueError("Exakt en av score_input och final_points")
+        if self.final_points is not None and self.draw:
+            raise ValueError("Oavgjort skickas med score_input")
+        if self.mahjong and self.score_input is not None:
+            raise ValueError("mahjong bara med final_points")
+        return self
 
 
 async def _close(ws: WebSocket) -> None:
@@ -147,6 +161,7 @@ def _lobby_msg(game: Game) -> dict:
             "submissions": {
                 str(s.game_player_id): {
                     "draw": s.draw,
+                    "mahjong": s.did_mahjong,
                     "score_input": s.score_input,
                     "base_points": s.base_points,
                     "doublings": s.doublings,
@@ -246,7 +261,9 @@ async def lobby_socket(ws: WebSocket) -> None:
                     continue
                 try:
                     msg = SubmitScore.model_validate(raw)
-                    rnd = store.submit_score(game, player, msg.round_id, msg.score_input, msg.draw)
+                    rnd = store.submit_score(
+                        game, player, msg.round_id, msg.score_input, msg.draw, msg.final_points, msg.mahjong
+                    )
                 except ValidationError:
                     await _send(ws, _error_msg("invalid_message", "Ogiltigt submit_score"))
                     continue

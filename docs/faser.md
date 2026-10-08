@@ -32,6 +32,13 @@ Ingen databas: spelstate hålls i minnet (se CLAUDE.md). Ingen historik eller st
   - [x] **3.8a** Skicka in och vänta: sammanfattning, uträkning från servern, konflikter, serverfel, ställning i huvudet
     - Kom ihåg: testa att en omladdning mitt i en rond fyller i formuläret igen från serverns `submissions` (egen inlämning, även oavgjort).
   - [x] **3.8b** Rondresultat: `last_round` i `lobby_update`, betalningar, nya totaler, vind i ronden och nästa vindar, knappen "Nästa rond"
+- [ ] **3.9** Direkt inmatning av slutpoäng ("Hur slutade ronden?" som eget steg, "Jag kan inte räkna" leder till Vy 1–3)
+  - [x] **3.9a** Backend: `submit_score` med `final_points` + `mahjong`, validering (heltal, jämnt, ≥ 0, ≥ 20 vid Mahjong),
+    `null` i baspoäng/dubblingar, `mahjong` i `submissions`, dokumentation och tester
+  - [ ] **3.9b** Frontend: utfallssteg, fältet "Dina poäng för ronden", "Jag kan inte räkna", "–" i väntläget och rondresultatet
+    - Kom ihåg: etikett "Dina poäng för ronden", hjälptext "Poängen på din hand. Det är inte vad du får eller betalar,
+      det räknar servern ut." Knappen visar talet ("Skicka 1 280", sv-SE) och talet ekas stort under fältet.
+      Udda tal avvisas även i frontend. "Ändra min inmatning" följer förra inlämningens läge.
 
 ## Fas 4 — Spelvy (realtid)
 - [ ] **4.1** UI: Aktiv spelvy (totalpoäng per spelare, aktuell vind, rondnummer)

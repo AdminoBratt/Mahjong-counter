@@ -1,6 +1,7 @@
 # Spelregler & poänglogik
 
-Backend ansvarar för ALL matematik. Frontend skickar bara rådata.
+Backend ansvarar för ALL matematik. Frontend skickar rådata (Vy 1–3) eller en slutpoäng som spelaren
+räknat själv (Beslut 45). Frontend räknar aldrig något.
 
 ## Brickor
 - **Serier**: Tecken 1-9, Bambu 1-9, Cirkel 1-9
@@ -133,7 +134,7 @@ Användaren anger drak- och vind-3tal. Blommor och årstider visas utifrån Vy 1
 19. `rotate_winds` tar spelar-id → vind och vinnarens spelar-id, `winner=None` betyder oavgjort (samma form som `settle`).
 20. `rotate_winds` returnerar bara nästa ronds vindar. Rondnummer hör till 3.4 och rondens vind till den tekniska skulden.
 21. Oavgjort anges uttryckligen av varje spelare (fältet `draw` i `submit_score`) och härleds aldrig.
-22. Mahjong anges i `score_input.mahjong`. Det finns inget separat `mark_mahjong`.
+22. Mahjong anges i `score_input.mahjong`, eller i `mahjong` vid direkt slutpoäng (Beslut 45). Det finns inget separat `mark_mahjong`.
 23. Oavgjort och Mahjong i samma inlämning nekas (`invalid_score`).
 24. En spelare får skicka in igen tills ronden är avslutad. Den senaste inlämningen gäller.
 25. Ronden avslutas när alla fyra har lämnat in och antingen exakt en har Mahjong och ingen valt oavgjort, eller alla fyra valt oavgjort.
@@ -156,3 +157,8 @@ Användaren anger drak- och vind-3tal. Blommor och årstider visas utifrån Vy 1
 42. Vid oavgjort visas baspoäng, dubblingar och slutpoäng som "–" och betalningen som 0 (Beslut 13).
 43. Under tabellen står alltid: "Betalningar till och från Öst dubblas. Förlorarna gör upp sinsemellan. Summan av alla betalningar är 0."
 44. Resultatet visas tills spelaren klickar "Nästa rond" eller har lämnat in i nästa rond. Valet sparas inte: en omladdning före inlämning visar resultatet igen, en omladdning efter inlämning visar väntläget.
+45. En spelare kan ange sin slutpoäng direkt (`final_points` och `mahjong` i `submit_score`) i stället för rådata från Vy 1–3. Backend räknar inte om den. Den senaste inlämningen gäller, oavsett läge (Beslut 24).
+46. En direkt slutpoäng måste vara ett heltal och minst 0. Bool och decimaltal avvisas. Mahjong kräver minst 20, eftersom bonusen för Mahjong är 20p.
+47. En direkt slutpoäng måste vara jämn, eftersom alla baspoäng är jämna. Ett udda tal avvisas med "Slutpoängen är alltid ett jämnt tal". Det fångar tryckfel. Kontrollen görs i både backend och frontend.
+48. En direkt slutpoäng lagras utan baspoäng och dubblingar. De visas som "–" tillsammans med en text om att slutpoängen är angiven av spelaren.
+49. Betalningar, totaler och vindrotation räknas alltid i backend, oavsett om slutpoängen är uträknad eller angiven direkt.

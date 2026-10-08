@@ -12,7 +12,8 @@ spelare ersätter den gamla, som stängs.
 CLIENT → SERVER:
   join_lobby        { lobby_code, nickname }
   choose_wind       { wind }   # 'east' | 'south' | 'west' | 'north'
-  submit_score      { round_id, score_input, draw }   # draw: bool, default false
+  submit_score      { round_id, score_input, draw }   # Vy 1–3 eller oavgjort. draw: bool, default false
+                    { round_id, final_points, mahjong }  # slutpoäng som spelaren räknat själv, mahjong: bool, default false
   end_game          {}         # inte implementerat ännu
 
 SERVER → CLIENT (broadcast till alla i lobby):
@@ -22,13 +23,15 @@ SERVER → CLIENT (broadcast till alla i lobby):
                     # current_round: null tills spelet startat, annars
                     #   { id, round_number, round_wind,   # round_wind är alltid 'east' tills vidare
                     #     conflict,                       # null | 'no_mahjong' | 'multiple_mahjong' | 'draw_disagreement'
-                    #     submissions: { <player_id>: { draw, score_input,       # bara de som lämnat in
+                    #     submissions: { <player_id>: { draw, mahjong, score_input,       # bara de som lämnat in
                     #                                   base_points, doublings, final_points } } }
+                    #       # direkt slutpoäng: score_input, base_points och doublings är null
                     # last_round: null tills första ronden avslutats, annars senast avslutade ronden
                     #   med samma fält som round_complete (utan type)
   round_complete    { round_id, round_number, round_wind, winner_id,   # winner_id null = oavgjort
                       payments: { <player_id>: { wind,   # spelarens vind i ronden
                                                  base_points, doublings, final_points, payment_delta } },
+                                                 # base_points/doublings null = slutpoängen angiven direkt
                       new_totals: { <player_id>: int },
                       next_round_winds: { <player_id>: wind } }
   game_over         { final_standings, history }   # inte implementerat ännu
@@ -43,12 +46,17 @@ Efter `join_lobby` gäller:
   `lobby_update` till alla, även när valet nekas (så att klienten synkas om).
 - När alla fyra har valt sätts `status` till `active`. Därefter är vindarna låsta och nya smeknamn
   nekas med `game_started`.
-- `submit_score` gäller den aktuella ronden (`current_round.id`). `score_input` är rådata enligt
-  `ScoreInput` i `backend/app/scoring.py`, Mahjong anges i `score_input.mahjong`. En spelare får
+- `submit_score` gäller den aktuella ronden (`current_round.id`). Exakt en av `score_input` och
+  `final_points` skickas. `score_input` är rådata enligt `ScoreInput` i `backend/app/scoring.py`, och
+  Mahjong anges då i `score_input.mahjong`. `final_points` är en slutpoäng som spelaren räknat själv
+  (heltal, jämnt, minst 0, minst 20 vid Mahjong), och Mahjong anges då i `mahjong`. Backend räknar inte om
+  den, men betalningar, totaler och vindrotation räknas alltid i backend. Oavgjort skickas som
+  `{draw: true, score_input: {}}`. `submissions[*].mahjong` visar om spelaren angett Mahjong i båda lägena. En spelare får
   skicka in igen tills ronden är avslutad; den senaste gäller. Varje giltig inlämning ger
   `lobby_update` till alla. `submissions` syns för alla, så en spelare som återansluter får tillbaka
   sin egen inmatning. `base_points`, `doublings` och `final_points` är serverns uträkning av
-  inlämningen; klienten visar dem som de är och räknar inget själv.
+  inlämningen (vid direkt slutpoäng är de två första `null` och `final_points` spelarens tal); klienten
+  visar dem som de är och räknar inget själv.
 - När ronden avslutas skickas `round_complete` först och sedan `lobby_update` med nästa rond.
   Kan ronden inte avslutas trots fyra inlämningar visas orsaken i `current_round.conflict`.
 - `last_round` byggs av samma funktion som `round_complete`, så resultatet är identiskt live och efter
@@ -64,7 +72,10 @@ Efter `join_lobby` gäller:
 - `game_started`: spelet har startat och smeknamnet är nytt
 
 `error.code` vid `submit_score` (socketen stängs inte, ingen broadcast):
-- `invalid_message`: fälten har fel typ (t.ex. `round_id` inte ett UUID, `score_input` inte ett objekt, `draw` inte bool)
+- `invalid_message`: fälten har fel typ (t.ex. `round_id` inte ett UUID, `score_input` inte ett objekt, `draw` inte bool,
+  `final_points` inte ett heltal (bool och decimaltal avvisas), `mahjong` inte bool), både eller ingen av `score_input`
+  och `final_points`, `final_points` med `draw: true`, eller `mahjong` med `score_input`
 - `not_active`: spelet har inte startat
 - `wrong_round`: `round_id` är inte den aktuella ronden
-- `invalid_score`: inmatningen bryter mot reglerna, eller både oavgjort och Mahjong
+- `invalid_score`: inmatningen bryter mot reglerna, eller både oavgjort och Mahjong. För `final_points`:
+  negativt, udda, eller under 20 med `mahjong: true`

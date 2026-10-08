@@ -32,12 +32,13 @@ class GamePlayer:
 @dataclass
 class RoundScore:
     game_player_id: uuid.UUID
-    base_points: int
-    doublings: int
+    # None i base_points, doublings och score_input = slutpoängen angiven direkt av spelaren.
+    base_points: int | None
+    doublings: int | None
     final_points: int
     did_mahjong: bool
     draw: bool  # spelaren har valt oavgjort
-    score_input: dict  # rådata från spelaren
+    score_input: dict | None  # rådata från spelaren
     wind: Wind  # spelarens vind i ronden; GamePlayer.wind har roterats när ronden avslutats
     payment_delta: int = 0  # sätts när ronden avslutas
 
@@ -138,10 +139,18 @@ class GameStore:
         return True
 
     def submit_score(
-        self, game: Game, player: GamePlayer, round_id: uuid.UUID, raw: dict, draw: bool
+        self,
+        game: Game,
+        player: GamePlayer,
+        round_id: uuid.UUID,
+        raw: dict | None,
+        draw: bool,
+        final_points: int | None = None,
+        mahjong: bool = False,
     ) -> Round | None:
         """Sparar spelarens inlämning; en ny ersätter den förra. Returnerar ronden om den avslutades.
 
+        Antingen rådata (raw) eller en slutpoäng som spelaren räknat själv (raw=None, final_points, mahjong).
         GameError vid fel. Synkron av samma skäl som join(): ronden avslutas bara en gång.
         """
         if game.status != "active":
@@ -149,20 +158,30 @@ class GameStore:
         rnd = game.rounds[-1]
         if round_id != rnd.id:
             raise GameError("wrong_round", "Ronden är redan avslutad eller okänd")
-        try:
-            s = score(raw, player.wind, rnd.round_wind)
-        except ValueError as e:
-            msg = "Ogiltig poänginmatning" if isinstance(e, ValidationError) else str(e)
-            raise GameError("invalid_score", msg) from e
-        did_mahjong = raw.get("mahjong") is not None  # raw är en giltig dict efter score()
+        if raw is None:
+            # Beslut 45-47: backend räknar inte om en direkt slutpoäng, bara rimlighetskontroll.
+            if final_points < 0:
+                raise GameError("invalid_score", "Slutpoängen kan inte vara negativ")
+            if final_points % 2:
+                raise GameError("invalid_score", "Slutpoängen är alltid ett jämnt tal")
+            if mahjong and final_points < 20:
+                raise GameError("invalid_score", "Mahjong ger minst 20 poäng")
+            base_points = doublings = None
+            did_mahjong = mahjong
+        else:
+            try:
+                s = score(raw, player.wind, rnd.round_wind)
+            except ValueError as e:
+                msg = "Ogiltig poänginmatning" if isinstance(e, ValidationError) else str(e)
+                raise GameError("invalid_score", msg) from e
+            base_points, doublings, final_points = s.base_points, s.doublings, s.final_points
+            did_mahjong = raw.get("mahjong") is not None  # raw är en giltig dict efter score()
         if draw and did_mahjong:
             raise GameError("invalid_score", "Oavgjort och Mahjong samtidigt")
 
         rnd.scores = [x for x in rnd.scores if x.game_player_id != player.id]
         rnd.scores.append(
-            RoundScore(
-            player.id, s.base_points, s.doublings, s.final_points, did_mahjong, draw, raw, player.wind
-        )
+            RoundScore(player.id, base_points, doublings, final_points, did_mahjong, draw, raw, player.wind)
         )
         game.last_activity = _now()
         if len(rnd.scores) < MAX_PLAYERS or rnd.conflict():

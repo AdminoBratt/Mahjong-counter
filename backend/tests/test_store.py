@@ -252,3 +252,58 @@ def test_wrong_round_and_not_active():
     with pytest.raises(GameError) as e:
         store.submit_score(waiting, waiting.players[0], old, {}, False)
     assert e.value.code == "not_active"
+
+
+# --- 3.9a: slutpoäng angiven direkt ---
+
+
+def _direct(store, game, p, points, mahjong=False):
+    return store.submit_score(game, p, game.rounds[-1].id, None, False, points, mahjong)
+
+
+def test_direct_score_stored_without_base_and_doublings():
+    store = GameStore()
+    game, a, b, *_ = _active_game(store)
+    assert _direct(store, game, a, 48, mahjong=True) is None
+    assert _direct(store, game, b, 0) is None
+    sa, sb = game.rounds[0].scores
+    assert (sa.base_points, sa.doublings, sa.final_points, sa.did_mahjong, sa.score_input) == (None, None, 48, True, None)
+    assert (sb.final_points, sb.did_mahjong) == (0, False)
+
+
+def test_direct_and_views_replace_each_other():
+    store = GameStore()
+    game, a, *_ = _active_game(store)
+    _direct(store, game, a, 48)
+    store.submit_score(game, a, game.rounds[0].id, SET_4, False)
+    [only] = game.rounds[0].scores
+    assert (only.base_points, only.final_points, only.score_input) == (4, 4, SET_4)
+    _direct(store, game, a, 20, mahjong=True)
+    [only] = game.rounds[0].scores
+    assert (only.base_points, only.final_points, only.did_mahjong) == (None, 20, True)
+
+
+@pytest.mark.parametrize(
+    "points, mahjong, message",
+    [
+        (-2, False, "negativ"),
+        (47, False, "jämnt"),
+        (21, True, "jämnt"),
+        (18, True, "minst 20"),
+    ],
+)
+def test_direct_score_invalid(points, mahjong, message):
+    store = GameStore()
+    game, a, *_ = _active_game(store)
+    with pytest.raises(GameError) as e:
+        _direct(store, game, a, points, mahjong)
+    assert e.value.code == "invalid_score" and message in str(e.value)
+    assert game.rounds[0].scores == []
+
+
+def test_two_direct_mahjong_conflict():
+    store = GameStore()
+    game, a, b, c, d = _active_game(store)
+    for p, mahjong in zip((a, b, c, d), (True, True, False, False)):
+        _direct(store, game, p, 20, mahjong)
+    assert game.rounds[0].conflict() == "multiple_mahjong"

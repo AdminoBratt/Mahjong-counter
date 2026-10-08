@@ -47,7 +47,8 @@ Om spelreglerna är oklara: fråga mig, gissa inte.
 - Håll lagringen bakom ett litet gränssnitt (`GameStore`) så att den kan bytas ut senare om det behövs.
 
 ## Viktiga regler
-- All poängmatematik sker ENBART i backend. Frontend skickar rådata (vad spelaren valt), backend beräknar allt.
+- All poängmatematik sker ENBART i backend. Frontend skickar antingen rådata (Vy 1–3) eller en slutpoäng som
+  spelaren räknat själv, och räknar aldrig något. Betalningar, totaler och vindrotation räknas alltid i backend.
 - WebSocket-events broadcastas alltid till ALLA spelare i lobbyn.
 - API-rutter ligger under `/api` så att de inte krockar med frontendens sidor. `/ws` kontrollerar `Origin`.
 - Desktop (pc-webbläsare) är primärt. Mobilanpassning prioriteras inte, men undvik att göra layouten omöjlig att använda på smal skärm.
@@ -111,6 +112,9 @@ Medvetet uppskjutet, inte buggar.
   `set_in_round_wind` är användarbekräftad indata i Vy 2. Uppskjuten till efter Fas 3.
 - Ingen ångra: en avslutad rond kan inte ändras eller ångras. Felinmatning upptäckt efter att den fjärde
   spelaren lämnat in går inte att rätta i appen.
+- Ingen "Ångra senaste ronden": med direkt slutpoäng avslutas ronden när den fjärde spelaren skickar. Har den
+  som skickar sist skrivit fel (t.ex. en extra nolla) kan felet inte rättas, eftersom ronden redan är avslutad.
+  Riskerna minskas av att talet visas stort före inskick och av kontrollen för jämna tal.
 - En rond väntar på alla fyra, utan timeout. Kommer en frånkopplad spelare aldrig tillbaka står ronden still.
 
 ## Lärdomar
