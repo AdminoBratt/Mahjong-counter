@@ -17,7 +17,7 @@ Ingen databas: spelstate hålls i minnet (se CLAUDE.md). Ingen historik eller st
 - [x] **2.6** UI: Vindval (rond 1, varje spelare väljer sin startvind)
 
 ## Fas 3 — Poänginmatning
-- [ ] **3.1** Backend: Poängberäkningsmodul (baspoäng + dubblingar)
+- [x] **3.1** Backend: Poängberäkningsmodul (baspoäng + dubblingar)
 - [ ] **3.2** Backend: Betalningslogik
 - [ ] **3.3** Backend: Vindrotationslogik
 - [ ] **3.4** API + WebSocket: `submit_score`, `round_complete`
