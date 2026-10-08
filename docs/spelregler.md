@@ -132,3 +132,10 @@ Systemet föreslår dubblingar automatiskt utifrån Vy 1. Användaren bekräftar
 18. Vindrotationslogiken (`rotate_winds`) ligger i `backend/app/scoring.py`, ingen egen modul.
 19. `rotate_winds` tar spelar-id → vind och vinnarens spelar-id, `winner=None` betyder oavgjort (samma form som `settle`).
 20. `rotate_winds` returnerar bara nästa ronds vindar. Rondnummer hör till 3.4 och rondens vind till den tekniska skulden.
+21. Oavgjort anges uttryckligen av varje spelare (fältet `draw` i `submit_score`) och härleds aldrig.
+22. Mahjong anges i `score_input.mahjong`. Det finns inget separat `mark_mahjong`.
+23. Oavgjort och Mahjong i samma inlämning nekas (`invalid_score`).
+24. En spelare får skicka in igen tills ronden är avslutad. Den senaste inlämningen gäller.
+25. Ronden avslutas när alla fyra har lämnat in och antingen exakt en har Mahjong och ingen valt oavgjort, eller alla fyra valt oavgjort.
+26. Alla andra kombinationer avslutar inte ronden. Läget visas som en konflikt (`no_mahjong`, `multiple_mahjong`, `draw_disagreement`) och löses genom att någon skickar in igen.
+27. En avslutad rond kan inte ångras eller ändras (se "Känd teknisk skuld" i CLAUDE.md).

@@ -6,8 +6,7 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.store import Wind
-
+Wind = Literal["east", "south", "west", "north"]
 WIND_NUMBER = {"east": 1, "south": 2, "west": 3, "north": 4}
 
 TileNumber = Annotated[int, Field(ge=1, le=4)]

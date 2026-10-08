@@ -104,10 +104,13 @@ Följ alltid dessa val i alla UI-steg.
 ## Känd teknisk skuld
 Medvetet uppskjutet, inte buggar.
 
-- Prevailing wind (`Game.round_wind` / `Round.round_wind`) roterar inte ännu och är tills vidare fast `east`.
+- Prevailing wind (`Round.round_wind`) roterar inte ännu och är tills vidare fast `east`.
   Spelarnas individuella vindar roterar korrekt moturs. I riktig Mahjong byter rondens vind efter ett helt varv.
   Påverkar semantiken för dubblingen "3tal/4tal i rondens vind". Ingen felräkning nu eftersom
   `set_in_round_wind` är användarbekräftad indata i Vy 2. Uppskjuten till efter Fas 3.
+- Ingen ångra: en avslutad rond kan inte ändras eller ångras. Felinmatning upptäckt efter att den fjärde
+  spelaren lämnat in går inte att rätta i appen.
+- En rond väntar på alla fyra, utan timeout. Kommer en frånkopplad spelare aldrig tillbaka står ronden still.
 
 ## Lärdomar
 Fylls på löpande. När Claude gör ett fel: skriv in rättelsen här som en kort regel.
