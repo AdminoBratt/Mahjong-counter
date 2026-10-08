@@ -1,5 +1,5 @@
 import { useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from 'react'
-import { Navigate, useOutletContext, useParams } from 'react-router-dom'
+import { Navigate, useNavigate, useOutletContext, useParams } from 'react-router-dom'
 
 import {
   bonusTiles,
@@ -31,6 +31,7 @@ import {
   WIND_NAME,
   type Conflict,
   type CurrentRound,
+  type FinalResult,
   type Player,
   type RoundResult,
   type RoundSubmission,
@@ -67,8 +68,18 @@ const focus = (el: HTMLElement | null) => el?.focus()
 
 export default function Game() {
   const { code = '' } = useParams()
-  const { nickname, players, gameStatus, currentRound, lastRound, scoreHistory, actionError, status, send } =
-    useOutletContext<Session>()
+  const {
+    nickname,
+    players,
+    gameStatus,
+    currentRound,
+    lastRound,
+    scoreHistory,
+    finalResult,
+    actionError,
+    status,
+    send,
+  } = useOutletContext<Session>()
   const me = players.find((p) => p.nickname.toLowerCase() === nickname.toLowerCase())
   const [draft, setDraft] = useState(emptyDraft)
   const [step, setStep] = useState<Step>('outcome')
@@ -100,6 +111,10 @@ export default function Game() {
   }
 
   if (gameStatus === 'waiting') return <Navigate to={`/lobby/${code}`} replace />
+  // Före !currentRound: när spelet är avslutat skickar servern ingen aktuell rond.
+  if (gameStatus === 'finished') {
+    return finalResult && me ? <FinalView result={finalResult} players={players} history={scoreHistory} meId={me.id} /> : null
+  }
   if (!currentRound || !me?.wind) return null
 
   const round = currentRound
@@ -244,6 +259,125 @@ export default function Game() {
         meId={me.id}
         open={result !== null || step === 'waiting'}
       />
+
+      {me.seat_order === 1 && (
+        <EndGame round={round} lastRoundNumber={lastRound?.round_number ?? null} offline={status !== 'open'} send={send} />
+      )}
+    </div>
+  )
+}
+
+type EndGameProps = {
+  round: CurrentRound
+  lastRoundNumber: number | null
+  offline: boolean
+  send: (msg: object) => void
+}
+
+// Bara för skaparen (plats 1). Avslutet gäller alla fyra och går inte att ångra, så det bekräftas i en dialog.
+// Native <dialog>: fokusfälla, Esc och fokus tillbaka till knappen. Fokus börjar på Avbryt, första knappen.
+// Texten läses från serverns aktuella rond medan dialogen är öppen, med samma rondnummer som ställningen.
+function EndGame({ round, lastRoundNumber, offline, send }: EndGameProps) {
+  const dialog = useRef<HTMLDialogElement>(null)
+  const submitted = Object.keys(round.submissions).length
+  return (
+    <section className="host" aria-labelledby="host-heading">
+      <h2 id="host-heading" className="visually-hidden">
+        Spelledare
+      </h2>
+      <p className="muted">Du är spelledare och kan avsluta spelet.</p>
+      <button className="secondary" onClick={() => dialog.current?.showModal()}>
+        Avsluta spel…
+      </button>
+      <dialog ref={dialog} aria-labelledby="end-heading">
+        <form method="dialog" className="confirm">
+          <h2 id="end-heading">Avsluta spelet för alla?</h2>
+          {lastRoundNumber === null ? (
+            <p>Inga ronder är avslutade än. Spelet avslutas utan resultat.</p>
+          ) : (
+            <p>Ställningen efter rond {lastRoundNumber} blir slutresultatet.</p>
+          )}
+          {submitted > 0 && (
+            <p>
+              Rond {round.round_number} pågår och räknas inte ({submitted} av 4 har lämnat in).
+            </p>
+          )}
+          <p>Spelet avslutas för alla fyra spelare och går inte att ångra.</p>
+          <div className="actions">
+            <button className="secondary">Avbryt</button>
+            <button className="primary" disabled={offline} onClick={() => send({ type: 'end_game' })}>
+              Avsluta spelet
+            </button>
+          </div>
+        </form>
+      </dialog>
+    </section>
+  )
+}
+
+type FinalProps = { result: FinalResult; players: Player[]; history: ScoreHistory; meId: string }
+
+// Slutresultatet. Placering och total kommer från servern (final_result), inget räknas här.
+function FinalView({ result, players, history, meId }: FinalProps) {
+  const navigate = useNavigate()
+  const name = (id: string) => players.find((p) => p.id === id)?.nickname
+  const rounds = result.rounds_played
+
+  // Rensa sessionen så att man inte skickas tillbaka till det avslutade spelet.
+  function newGame() {
+    sessionStorage.removeItem('lobby_code')
+    sessionStorage.removeItem('nickname')
+    navigate('/')
+  }
+
+  return (
+    <div className="game">
+      <header>
+        <p className="muted">
+          {rounds === 1 ? '1 rond spelad' : `${rounds} ronder spelade`} · Avslutat av {name(result.ended_by)}
+        </p>
+        <h1 ref={focus} tabIndex={-1}>
+          Spelet är slut
+        </h1>
+      </header>
+
+      {rounds === 0 ? (
+        <p>Inga ronder avslutades. Spelet slutade utan resultat.</p>
+      ) : (
+        <div className="table-scroll">
+          <table className="result-table">
+            <caption className="visually-hidden">Slutställning</caption>
+            <thead>
+              <tr>
+                <th scope="col" className="place">Placering</th>
+                <th scope="col">Spelare</th>
+                <th scope="col" className="num">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {result.standings.map((s) => (
+                <tr key={s.player_id}>
+                  <td className="place mono big">{s.place}</td>
+                  <th scope="row">
+                    {name(s.player_id)}
+                    {s.player_id === meId && <span className="muted"> (du)</span>}
+                  </th>
+                  <td className={`num mono big ${tone(s.total_score)}`}>{signed(s.total_score)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      {rounds > 0 && <p className="muted">Lika total ger delad placering.</p>}
+
+      <ScoreChart history={history} players={players} meId={meId} open />
+
+      <div className="actions">
+        <button className="primary" onClick={newGame}>
+          Nytt spel
+        </button>
+      </div>
     </div>
   )
 }

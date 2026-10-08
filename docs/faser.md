@@ -50,10 +50,10 @@ Poänghistoriken inom ett pågående spel härleds ur rondresultaten (Beslut 55)
       Aldrig `--accent`, `--positive` eller `--negative`. Under innehållet i en `<details>`, stängd under
       inmatning och öppen i resultat- och väntläget. Ingen kurva före första avslutade ronden.
 - [x] **4.3** WebSocket: live-uppdateringar till alla spelare
-- [ ] **4.4** UI: Avsluta spel-knapp + slutresultat
+- [x] **4.4** UI: Avsluta spel-knapp + slutresultat
   - [x] **4.4a** Backend: `end_game` (bara skaparen, annars `not_host`), `final_result` i `lobby_update`,
     `game_over`, placeringar, `game_finished` för `submit_score` och nya smeknamn, `choose_wind` ignoreras tyst + tester
-  - [ ] **4.4b** Frontend: knappen "Avsluta spel" med bekräftelsedialog, slutvyn och "Nytt spel"
+  - [x] **4.4b** Frontend: knappen "Avsluta spel" med bekräftelsedialog, slutvyn och "Nytt spel"
     - Kom ihåg: knappen och raden "Du är spelledare och kan avsluta spelet." visas bara för plats 1.
       Dialogen (native `<dialog>`, fokus på Avbryt) läser rondnummer och antal inlämningar från serverns
       `current_round` när den öppnas, med samma rondnummer som ställningen. Utan avslutade ronder säger den

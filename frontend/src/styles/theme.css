@@ -686,3 +686,42 @@ button:disabled {
 .chart-svg .mine text {
   font-weight: 600;
 }
+
+/* Spelledarens fot i spelvyn: långt från Skicka och Nästa rond. */
+.host {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+  padding-top: 24px;
+  border-top: 1px solid var(--border);
+}
+
+/* Bekräftelsen för Avsluta spel. Native <dialog>, modal via showModal(). */
+dialog {
+  max-width: 480px;
+  padding: 24px;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border-input);
+  border-radius: var(--radius);
+}
+
+dialog::backdrop {
+  background: color-mix(in srgb, var(--bg) 80%, transparent);
+}
+
+.confirm {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.confirm p {
+  margin: 0;
+}
+
+/* Slutställningen: placeringen är en smal kolumn längst till vänster. */
+.result-table .place {
+  width: 1%;
+}
