@@ -1,6 +1,8 @@
 // Formulärets utkast och mappningen till/från score_input (ScoreInput i backend/app/scoring.py).
 // Ingen poängräkning här, bara form. Backend räknar allt.
 
+import type { Wind } from './useLobby.ts'
+
 export type SetInput = { size: 3 | 4; concealed: boolean; major: boolean }
 export type Outcome = 'mahjong' | 'other' | 'draw'
 export type MahjongInput = {
@@ -87,4 +89,35 @@ export function groupsError(d: Draft): string | null {
     return `Mahjong kräver exakt fyra grupper (3-följder + 3tal/4tal). Du har ${groups(d)}.`
   }
   return null
+}
+
+export function majors(d: Draft): number {
+  return d.sets.filter((s) => s.major).length
+}
+
+// Samma regel som backend (_check i scoring.py): drak- och vind-3tal måste vara 3tal i 1, 9, vind, drake.
+// Är egen vind också rondens vind är det samma 3tal, så det räknas en gång.
+export function honorsError(d: Draft, sameWind: boolean): string | null {
+  const used = d.dragon_sets + (sameWind ? d.round_wind_sets : d.round_wind_sets + d.own_wind_sets)
+  if (used > majors(d)) {
+    return `Du har angett ${used} 3tal/4tal i drake eller vind, men bara ${majors(d)} 3tal/4tal i 1, 9, vind, drake i Baspoäng.`
+  }
+  return null
+}
+
+const WIND_NUMBER: Record<Wind, number> = { east: 1, south: 2, west: 3, north: 4 }
+
+// Fakta om blommor och årstider att visa i Vy 2. Inga dubblingar räknas här, det gör backend.
+export function bonusTiles(d: Draft, wind: Wind) {
+  const own = WIND_NUMBER[wind]
+  const allFlowers = d.flowers.length === 4
+  const allSeasons = d.seasons.length === 4
+  return {
+    own,
+    ownFlower: d.flowers.includes(own),
+    ownSeason: d.seasons.includes(own),
+    allFlowers,
+    allSeasons,
+    allEight: allFlowers && allSeasons,
+  }
 }

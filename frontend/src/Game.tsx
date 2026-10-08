@@ -1,7 +1,18 @@
 import { useState, type Dispatch, type SetStateAction } from 'react'
 import { Navigate, useOutletContext, useParams } from 'react-router-dom'
 
-import { emptyDraft, fromSubmission, groups, groupsError, toSubmission, type Draft, type Outcome } from './draft.ts'
+import {
+  bonusTiles,
+  emptyDraft,
+  fromSubmission,
+  groups,
+  groupsError,
+  honorsError,
+  majors,
+  toSubmission,
+  type Draft,
+  type Outcome,
+} from './draft.ts'
 import { WINDS, WIND_NAME, type Session, type Wind } from './useLobby.ts'
 
 type Step = 1 | 2 | 3 | 'confirm'
@@ -61,6 +72,15 @@ export default function Game() {
 
       {step === 1 ? (
         <BaseView draft={draft} setDraft={setDraft} wind={me.wind} onNext={next} />
+      ) : step === 2 ? (
+        <DoublingsView
+          draft={draft}
+          setDraft={setDraft}
+          wind={me.wind}
+          roundWind={currentRound.round_wind}
+          onNext={next}
+          onBack={back}
+        />
       ) : (
         <>
           <p>{step === 'confirm' ? 'Bekräftelsen byggs i steg 3.8.' : `Vyn byggs i steg 3.${step + 4}.`}</p>
@@ -248,6 +268,116 @@ function BaseView({ draft, setDraft, wind, onNext }: ViewProps) {
 
       <div className="actions">
         <button className="primary" disabled={!outcome || error !== null} onClick={onNext}>
+          Nästa
+        </button>
+      </div>
+    </>
+  )
+}
+
+// Vy 2. Vy 1 vet inte vilken bricka ett 3tal i 1, 9, vind, drake är, så inget föreslås.
+// Taket är antalet sådana 3tal. Blommor och årstider visas bara, backend härleder dubblingarna.
+function DoublingsView({
+  draft,
+  setDraft,
+  wind,
+  roundWind,
+  onNext,
+  onBack,
+}: ViewProps & { roundWind: Wind; onBack: () => void }) {
+  const update = (patch: Partial<Draft>) => setDraft((d) => ({ ...d, ...patch }))
+  const sameWind = wind === roundWind
+  const maxDragons = Math.min(3, majors(draft))
+  const none = maxDragons === 0
+  const error = honorsError(draft, sameWind)
+  const tiles = bonusTiles(draft, wind)
+  const yesNo = (b: boolean) => (b ? 'Ja' : 'Nej')
+
+  const windOptions: [string, boolean, (on: boolean) => Partial<Draft>][] = sameWind
+    ? [
+        [
+          `3tal/4tal i ${WIND_NAME[wind]} (rondens och egen vind)`,
+          draft.round_wind_sets === 1,
+          (on) => ({ round_wind_sets: +on, own_wind_sets: +on }),
+        ],
+      ]
+    : [
+        [`3tal/4tal i rondens vind (${WIND_NAME[roundWind]})`, draft.round_wind_sets === 1, (on) => ({ round_wind_sets: +on })],
+        [`3tal/4tal i egen vind (${WIND_NAME[wind]})`, draft.own_wind_sets === 1, (on) => ({ own_wind_sets: +on })],
+      ]
+
+  return (
+    <>
+      <div className="score-grid">
+        <section className="card" aria-labelledby="honors-heading">
+          <h2 id="honors-heading">Drakar och vindar</h2>
+          <p id="honors-hint" className="muted">
+            Bara 3tal/4tal i drakar, rondens vind och din egen vind ger dubbling.
+            {sameWind && ' Din vind är också rondens vind, så kryssrutan räknas som båda.'}
+            {none
+              ? ' Du har inga 3tal/4tal i 1, 9, vind, drake i Baspoäng.'
+              : ` Högst ${majors(draft)} totalt, lika många som dina 3tal/4tal i 1, 9, vind, drake.`}
+          </p>
+
+          <div className="field">
+            <label htmlFor="dragon-sets">Antal 3tal/4tal i drakar (röd, grön eller vit)</label>
+            <input
+              id="dragon-sets"
+              type="number"
+              className="count"
+              min={0}
+              max={maxDragons}
+              value={draft.dragon_sets}
+              disabled={none && draft.dragon_sets === 0}
+              aria-invalid={error !== null}
+              aria-describedby="honors-hint honors-error"
+              onChange={(e) =>
+                update({ dragon_sets: Math.max(0, Math.min(maxDragons, Math.floor(Number(e.target.value)) || 0)) })
+              }
+            />
+          </div>
+
+          <fieldset className="options" aria-describedby="honors-hint honors-error">
+            <legend>Vindar</legend>
+            {windOptions.map(([label, checked, patch]) => (
+              <label key={label} className="option">
+                <input
+                  type="checkbox"
+                  checked={checked}
+                  disabled={none && !checked}
+                  onChange={(e) => update(patch(e.target.checked))}
+                />
+                {label}
+              </label>
+            ))}
+          </fieldset>
+          {error && (
+            <p id="honors-error" className="error">
+              {error}
+            </p>
+          )}
+        </section>
+
+        <section className="card" aria-labelledby="tiles-heading">
+          <h2 id="tiles-heading">Blommor och årstider</h2>
+          <p>
+            Egen blomma ({tiles.own} {WIND_NAME[wind]}): {yesNo(tiles.ownFlower)}
+          </p>
+          <p>
+            Egen årstid ({tiles.own} {WIND_NAME[wind]}): {yesNo(tiles.ownSeason)}
+          </p>
+          <p>Alla 4 blommor: {yesNo(tiles.allFlowers)}</p>
+          <p>Alla 4 årstider: {yesNo(tiles.allSeasons)}</p>
+          <p>Alla 8: {yesNo(tiles.allEight)}</p>
+          <p className="muted">Räknas från Baspoäng. Gå tillbaka dit för att ändra.</p>
+        </section>
+      </div>
+
+      <div className="actions">
+        <button className="secondary" onClick={onBack}>
+          Tillbaka
+        </button>
+        <button className="primary" disabled={error !== null} onClick={onNext}>
           Nästa
         </button>
       </div>
