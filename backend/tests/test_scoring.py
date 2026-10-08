@@ -84,6 +84,7 @@ def test_general_doublings(raw, seat, expected):
         ({"sets": [pong()] * 4, "mahjong": {}}, 1),  # ingen följd
         ({"sets": [pong(major=True)] * 4, "mahjong": {"only_majors": True}}, 2),  # + ingen följd
         ({**WIN, "mahjong": {"one_suit": True}}, 3),
+        ({**WIN, "sets": [pong(major=True)], "mahjong": {"one_suit": True}}, 3),  # 1or/9or i serien
         (
             {
                 "chows": 2,
@@ -138,6 +139,16 @@ def test_full_hand():
             {"chows": 2, "sets": [pong(major=True)] * 2, "dragon_sets": 2, "mahjong": {"two_dragons_pair": True}},
             "south",
         ),
+        # Beslut 29: en serie utesluter drak- och vind-3tal.
+        ({**WIN, "sets": [pong(major=True)], "dragon_sets": 1, "mahjong": {"one_suit": True}}, "south"),
+        ({**WIN, "sets": [pong(major=True)], "round_wind_sets": 1, "mahjong": {"one_suit": True}}, "south"),
+        ({**WIN, "sets": [pong(major=True)], "own_wind_sets": 1, "mahjong": {"one_suit": True}}, "south"),
+        (
+            {**WIN, "sets": [pong(major=True)], "round_wind_sets": 1, "own_wind_sets": 1, "mahjong": {"one_suit": True}},
+            "east",
+        ),
+        # Beslut 30: en serie och enbart 1or/9or/drakar/vindar utesluter varandra.
+        ({"sets": [pong(major=True)] * 4, "mahjong": {"one_suit": True, "only_majors": True}}, "south"),
     ],
 )
 def test_invalid_input(raw, seat):
