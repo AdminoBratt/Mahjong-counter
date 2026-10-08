@@ -116,6 +116,8 @@ Medvetet uppskjutet, inte buggar.
 - Ingen "Ångra senaste ronden": med direkt slutpoäng avslutas ronden när den fjärde spelaren skickar. Har den
   som skickar sist skrivit fel (t.ex. en extra nolla) kan felet inte rättas, eftersom ronden redan är avslutad.
   Riskerna minskas av att talet visas stort före inskick och av kontrollen för jämna tal.
+- Bara skaparen (plats 1) kan avsluta spelet. Kommer skaparen aldrig tillbaka går spelet inte att avsluta,
+  utan det står kvar tills städningen (4.5) tar bort det.
 - En rond väntar på alla fyra, utan timeout. Kommer en frånkopplad spelare aldrig tillbaka står ronden still.
 
 ## Lärdomar

@@ -51,8 +51,21 @@ Poänghistoriken inom ett pågående spel härleds ur rondresultaten (Beslut 55)
       inmatning och öppen i resultat- och väntläget. Ingen kurva före första avslutade ronden.
 - [x] **4.3** WebSocket: live-uppdateringar till alla spelare
 - [ ] **4.4** UI: Avsluta spel-knapp + slutresultat
+  - [x] **4.4a** Backend: `end_game` (bara skaparen, annars `not_host`), `final_result` i `lobby_update`,
+    `game_over`, placeringar, `game_finished` för `submit_score` och nya smeknamn, `choose_wind` ignoreras tyst + tester
+  - [ ] **4.4b** Frontend: knappen "Avsluta spel" med bekräftelsedialog, slutvyn och "Nytt spel"
+    - Kom ihåg: knappen och raden "Du är spelledare och kan avsluta spelet." visas bara för plats 1.
+      Dialogen (native `<dialog>`, fokus på Avbryt) läser rondnummer och antal inlämningar från serverns
+      `current_round` när den öppnas, med samma rondnummer som ställningen. Utan avslutade ronder säger den
+      "Inga ronder är avslutade än. Spelet avslutas utan resultat." Slutvyn läser bara `final_result`
+      (placering, spelare, total, antal ronder, "Avslutat av X") plus kurvan och tabellen från 4.2.
+      "Nytt spel" tar bort `lobby_code` och `nickname` ur `sessionStorage` och går till `/`.
+      `game_finished` läggs till i `STALE_SESSION_CODES`.
 - [ ] **4.5** Backend: Städa bort inaktiva och avslutade spel ur minnet efter en tid
   - Kom ihåg: stäng öppna sockets i `connections` och släpp låset i `locks` för spelet som städas bort.
+  - Kom ihåg: avslutade spel (`status == "finished"`) tas bort efter en kort tid. Det gäller även spel där
+    alla fyra varit frånkopplade länge, till exempel om skaparen aldrig kom tillbaka. En omladdning efter
+    borttagning ger "Okänd lobbykod" (`unknown_lobby`). Klienten rensar redan sessionen då.
 
 ## Fas 5 — Deployment (en tjänst på Railway, görs före Fas 3)
 - [x] **5.1** Backend: API under `/api`, FastAPI serverar byggd frontend med fallback till `index.html`

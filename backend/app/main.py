@@ -138,7 +138,9 @@ async def _broadcast(game: Game, msg: dict) -> None:
 
 
 def _lobby_msg(game: Game) -> dict:
-    rnd = game.rounds[-1] if game.rounds else None
+    finished = game.status == "finished"
+    # En rond som pågick när spelet avslutades räknas inte och visas inte.
+    rnd = game.rounds[-1] if game.rounds and not finished else None
     return {
         "type": "lobby_update",
         "status": game.status,
@@ -172,6 +174,19 @@ def _lobby_msg(game: Game) -> dict:
         },
         "last_round": _round_result(game, game.rounds[-2]) if len(game.rounds) > 1 else None,
         "score_history": game.score_history(),
+        "final_result": _final_result(game) if finished else None,
+    }
+
+
+def _final_result(game: Game) -> dict:
+    """Slutresultatet. Samma funktion för game_over och lobby_update, så det är identiskt live och efter omladdning."""
+    return {
+        "rounds_played": sum(r.completed for r in game.rounds),
+        "ended_by": str(game.players[0].id),  # bara skaparen (plats 1) kan avsluta
+        "standings": [
+            {"player_id": str(p.id), "place": place, "total_score": p.total_score}
+            for place, p in game.standings()
+        ],
     }
 
 
@@ -248,16 +263,27 @@ async def lobby_socket(ws: WebSocket) -> None:
             except (ValueError, KeyError, TypeError):
                 continue
             kind = raw.get("type") if isinstance(raw, dict) else None
-            if kind not in ("choose_wind", "submit_score"):
+            if kind not in ("choose_wind", "submit_score", "end_game"):
                 continue  # okänd typ ignoreras
             async with lock:
                 if kind == "choose_wind":
+                    if game.status == "finished":
+                        continue  # ignoreras tyst, ingen omsynk behövs
                     try:
                         msg = ChooseWind.model_validate(raw)
                     except ValidationError:
                         continue
                     store.choose_wind(game, player, msg.wind)
                     # Även vid nekat val, så att den som förlorade en kapplöpning synkas om.
+                    await _broadcast(game, _lobby_msg(game))
+                    continue
+                if kind == "end_game":
+                    try:
+                        store.end_game(game, player)
+                    except GameError as e:
+                        await _send(ws, _error_msg(e.code, str(e)))
+                        continue
+                    await _broadcast(game, {"type": "game_over", **_final_result(game)})
                     await _broadcast(game, _lobby_msg(game))
                     continue
                 try:

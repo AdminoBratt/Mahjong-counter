@@ -11,13 +11,15 @@ lagringen bakom ett litet gränssnitt (`GameStore`).
 ```
 id            UUID
 lobby_code    str (6 tecken, unik, t.ex. "ABC123")
-status        'waiting' | 'active' | 'finished'
+status        'waiting' | 'active' | 'finished'   # 'finished' sätts av end_game (bara skaparen)
 created_at    datetime
 last_activity datetime   # används för att städa inaktiva spel
 players       list[GamePlayer]
 rounds        list[Round]  # sista = aktuell rond, skapas när status blir 'active'
 ```
-Rondnummer och rondens vind läses från `rounds[-1]`.
+Rondnummer och rondens vind läses från `rounds[-1]`. Skaparen är spelaren med `seat_order` 1.
+`Game.standings()` ger slutställningen (placering, spelare). En rond som pågick när spelet avslutades
+ligger kvar i `rounds` men räknas inte och visas inte.
 
 ## GamePlayer
 `Player` och `GamePlayer` är sammanslagna: en spelare finns bara i ett spel.
@@ -40,7 +42,7 @@ round_wind   'east' | 'south' | 'west' | 'north' = 'east'  # fast tills vidare, 
 scores       list[RoundScore]
 ```
 Poänghistoriken (`score_history` i `lobby_update`) lagras inte. `Game.score_history()` härleder den ur
-`payment_delta` i avslutade ronder (`winner_id` satt eller `is_draw`).
+`payment_delta` i avslutade ronder (`Round.completed`: `winner_id` satt eller `is_draw`).
 
 ## RoundScore
 ```
