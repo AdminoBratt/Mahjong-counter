@@ -46,6 +46,8 @@ export type RoundResult = {
   new_totals: Record<string, number>
   next_round_winds: Record<string, Wind>
 }
+// Total per spelare efter varje avslutad rond, från servern. Index = rondnummer, [0] = start.
+export type ScoreHistory = Record<string, number[]>
 export type Status = 'connecting' | 'open' | 'closed' | { error: string }
 
 export const WINDS: [Wind, string][] = [
@@ -66,6 +68,7 @@ export function useLobby(code: string) {
   const [gameStatus, setGameStatus] = useState<GameStatus | null>(null) // null tills första lobby_update
   const [currentRound, setCurrentRound] = useState<CurrentRound | null>(null)
   const [lastRound, setLastRound] = useState<RoundResult | null>(null)
+  const [scoreHistory, setScoreHistory] = useState<ScoreHistory>({})
   // Fel på ett meddelande efter join (t.ex. submit_score). Socketen lever vidare.
   const [actionError, setActionError] = useState<{ code: string; message: string } | null>(null)
   const wsRef = useRef<WebSocket | null>(null)
@@ -89,6 +92,7 @@ export function useLobby(code: string) {
         setGameStatus(msg.status)
         setCurrentRound(msg.current_round)
         setLastRound(msg.last_round) // round_complete ignoreras: last_round är en kodväg för live och omladdning
+        setScoreHistory(msg.score_history)
         setStatus('open')
       } else if (msg.type === 'error' && joined) {
         setActionError({ code: msg.code, message: msg.message })
@@ -120,7 +124,7 @@ export function useLobby(code: string) {
     setAttempt((n) => n + 1)
   }
 
-  return { nickname, players, gameStatus, currentRound, lastRound, actionError, status, send, reconnect }
+  return { nickname, players, gameStatus, currentRound, lastRound, scoreHistory, actionError, status, send, reconnect }
 }
 
 // Det som layout-routen skickar till Lobby och Game. Barnen renderas först när gameStatus är satt.

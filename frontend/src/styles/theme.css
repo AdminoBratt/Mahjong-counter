@@ -615,3 +615,74 @@ button:disabled {
   font-size: 0.875rem;
   font-weight: 400;
 }
+
+/* Poängkurvan: spelbordsyta under innehållet. Kontrast mot --felt: --text 10.6, --text-muted 5.2,
+   --border-input 2.7 (bara dekorativa rutnätslinjer), därför är nollinjen --text-muted. */
+.chart {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 8px 16px 16px;
+  background: var(--felt);
+  border-radius: var(--radius);
+}
+
+/* Klickytan minst 44px hög. Fokusringen kommer från :focus-visible. */
+.chart summary {
+  min-height: var(--control-height);
+  padding: 10px 0;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.chart[open] > summary {
+  padding-bottom: 0;
+}
+
+.chart-scroll {
+  overflow-x: auto;
+}
+
+/* 1:1 på desktop (text 16px), krymper till 640px och scrollar sedan i sidled. */
+.chart-svg {
+  display: block;
+  width: 100%;
+  max-width: 800px;
+  min-width: 640px;
+}
+
+.chart-svg text {
+  fill: var(--text);
+  font-family: var(--font-mono);
+  font-size: 16px;
+}
+
+.chart-svg .tick {
+  fill: var(--text-muted);
+}
+
+.chart-svg .grid {
+  stroke: var(--border-input);
+}
+
+.chart-svg .zero {
+  stroke: var(--text-muted);
+}
+
+.chart-svg .series polyline {
+  fill: none;
+  stroke: var(--text);
+  stroke-width: 1.5;
+}
+
+.chart-svg .series :is(circle, rect, polygon) {
+  fill: var(--text);
+}
+
+.chart-svg .mine polyline {
+  stroke-width: 3;
+}
+
+.chart-svg .mine text {
+  font-weight: 600;
+}

@@ -25,6 +25,7 @@ import {
   type Step,
   type Submission,
 } from './draft.ts'
+import { shortName, spreadLabels, xTicks, yScale, yTicks } from './chart.ts'
 import {
   WINDS,
   WIND_NAME,
@@ -33,6 +34,7 @@ import {
   type Player,
   type RoundResult,
   type RoundSubmission,
+  type ScoreHistory,
   type Session,
   type Wind,
 } from './useLobby.ts'
@@ -65,7 +67,8 @@ const focus = (el: HTMLElement | null) => el?.focus()
 
 export default function Game() {
   const { code = '' } = useParams()
-  const { nickname, players, gameStatus, currentRound, lastRound, actionError, status, send } = useOutletContext<Session>()
+  const { nickname, players, gameStatus, currentRound, lastRound, scoreHistory, actionError, status, send } =
+    useOutletContext<Session>()
   const me = players.find((p) => p.nickname.toLowerCase() === nickname.toLowerCase())
   const [draft, setDraft] = useState(emptyDraft)
   const [step, setStep] = useState<Step>('outcome')
@@ -234,6 +237,13 @@ export default function Game() {
       ) : (
         mine && <WaitingView mine={mine} wind={me.wind} round={round} players={players} meId={me.id} onEdit={edit} />
       )}
+
+      <ScoreChart
+        history={scoreHistory}
+        players={players}
+        meId={me.id}
+        open={result !== null || step === 'waiting'}
+      />
     </div>
   )
 }
@@ -350,6 +360,119 @@ function Standings({ players, meId, round, lastRoundNumber, showingResult }: Sta
       </ol>
     </section>
   )
+}
+
+// Kurvans mått i viewBox-enheter. Etiketterna är i Geist Mono, så bredden är exakt tecken × CHAR.
+const W = 800
+const H = 320
+const TOP = 16
+const BOTTOM = H - 48
+const FONT = 16
+const CHAR = FONT * 0.625 // Geist Mono: alla tecken lika breda
+const DASHES = ['', '8 4', '2 4', '12 4 2 4'] // heldragen, långa streck, korta streck, streck-prick
+
+type ChartProps = { history: ScoreHistory; players: Player[]; meId: string; open: boolean }
+
+// Total per spelare efter varje rond. Talen kommer från servern (score_history), här räknas bara placering.
+// Öppen i resultat- och väntläget, stängd under inmatning. Spelaren kan öppna och stänga den själv däremellan.
+function ScoreChart({ history, players, meId, open }: ChartProps) {
+  const series = players.map((p) => history[p.id] ?? [0])
+  const last = series[0].length - 1
+  if (last < 1) return null // ingen avslutad rond än
+
+  const values = series.flat()
+  const y = yScale(values, TOP, BOTTOM)
+  const ticks = yTicks(values, y, FONT * 1.25)
+  const labels = players.map((p, i) => `${shortName(p.nickname)}${p.id === meId ? ' (du)' : ''} ${signed(series[i][last])}`)
+  // Marginalerna räknas från den längsta texten, så att inget klipps.
+  const left = Math.max(4, ...ticks.map((t) => signed(t).length)) * CHAR + 16
+  const right = Math.max(...labels.map((l) => l.length)) * CHAR + 20
+  const x = (r: number) => left + (r / last) * (W - left - right)
+  const labelY = spreadLabels(
+    series.map((s) => y(s[last])),
+    FONT * 1.25,
+    TOP,
+    BOTTOM,
+  )
+
+  return (
+    <details className="chart" open={open}>
+      <summary>Poängkurva</summary>
+      <div className="chart-scroll">
+        <svg className="chart-svg" viewBox={`0 0 ${W} ${H}`} role="img" aria-labelledby="chart-title chart-desc">
+          <title id="chart-title">
+            Poängkurva, total per spelare efter varje rond: {players.map((p) => p.nickname).join(', ')}
+          </title>
+          <desc id="chart-desc">Samma tal finns i tabellen.</desc>
+          {ticks.map((t) => (
+            <g key={t}>
+              <line className={t === 0 ? 'zero' : 'grid'} x1={left} x2={W - right} y1={y(t)} y2={y(t)} />
+              <text className="tick" x={left - 12} y={y(t)} textAnchor="end" dominantBaseline="middle">
+                {signed(t)}
+              </text>
+            </g>
+          ))}
+          <text className="tick" x={left - 12} y={H - 16} textAnchor="end">
+            Rond
+          </text>
+          {xTicks(last).map((r) => (
+            <text key={r} className="tick" x={x(r)} y={H - 16} textAnchor="middle">
+              {r}
+            </text>
+          ))}
+          {players.map((p, i) => (
+            <g key={p.id} className={p.id === meId ? 'series mine' : 'series'}>
+              <polyline points={series[i].map((v, r) => `${x(r)},${y(v)}`).join(' ')} strokeDasharray={DASHES[i]} />
+              {series[i].map((v, r) => (
+                <Marker key={r} kind={i} x={x(r)} y={y(v)} />
+              ))}
+              <text x={W - right + 12} y={labelY[i]} dominantBaseline="middle">
+                {labels[i]}
+              </text>
+            </g>
+          ))}
+        </svg>
+      </div>
+      <details>
+        <summary>Visa som tabell</summary>
+        <div className="table-scroll">
+          <table className="result-table">
+            <thead>
+              <tr>
+                <th scope="col">Rond</th>
+                {players.map((p) => (
+                  <th key={p.id} scope="col" className="num">
+                    {p.nickname}
+                    {p.id === meId && <span className="muted"> (du)</span>}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {series[0].map((_, r) => (
+                <tr key={r}>
+                  <th scope="row">{r === 0 ? 'Start' : `Rond ${r}`}</th>
+                  {series.map((s, i) => (
+                    <td key={players[i].id} className={`num mono ${tone(s[r])}`}>
+                      {signed(s[r])}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </details>
+    </details>
+  )
+}
+
+// Markör per spelare (sätesordning): cirkel, fyrkant, triangel, romb.
+function Marker({ kind, x, y }: { kind: number; x: number; y: number }) {
+  if (kind === 0) return <circle cx={x} cy={y} r={4.5} />
+  if (kind === 1) return <rect x={x - 4} y={y - 4} width={8} height={8} />
+  if (kind === 2) return <polygon points={`${x},${y - 5.5} ${x + 5},${y + 4} ${x - 5},${y + 4}`} />
+  return <polygon points={`${x},${y - 6} ${x + 6},${y} ${x},${y + 6} ${x - 6},${y}`} />
 }
 
 const CONFLICT_TEXT: Record<Conflict, (names: { mahjong: string; draw: string }) => string> = {

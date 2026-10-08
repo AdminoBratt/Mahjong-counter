@@ -43,9 +43,9 @@ Poänghistoriken inom ett pågående spel härleds ur rondresultaten (Beslut 55)
 
 ## Fas 4 — Spelvy (realtid)
 - [x] **4.1** UI: Aktiv spelvy (totalpoäng per spelare, aktuell vind, rondnummer)
-- [ ] **4.2** UI: Poängkurva/graf (ren SVG)
+- [x] **4.2** UI: Poängkurva/graf (ren SVG)
   - [x] **4.2a** Backend: `score_history` i `lobby_update` (total per spelare efter varje avslutad rond) + tester
-  - [ ] **4.2b** Frontend: kurvan i ren SVG och tabellen bakom "Visa som tabell"
+  - [x] **4.2b** Frontend: kurvan i ren SVG och tabellen bakom "Visa som tabell"
     - Kom ihåg: alla linjer i `--text` (min tjockare), skilda med linjemönster, markörer och namnetiketter.
       Aldrig `--accent`, `--positive` eller `--negative`. Under innehållet i en `<details>`, stängd under
       inmatning och öppen i resultat- och väntläget. Ingen kurva före första avslutade ronden.
