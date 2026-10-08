@@ -1,5 +1,5 @@
-// Formulärets utkast och mappningen till/från score_input (ScoreInput i backend/app/scoring.py).
-// Ingen poängräkning här, bara form. Backend räknar allt.
+// Formulärets utkast och mappningen till/från submit_score: rådata (ScoreInput i backend/app/scoring.py)
+// eller en slutpoäng som spelaren räknat själv. Ingen poängräkning här, bara form. Backend räknar allt.
 
 import type { Wind } from './useLobby.ts'
 
@@ -25,10 +25,23 @@ export type ScoreInput = {
   own_wind_sets: number
   mahjong: MahjongInput | null
 }
-export type Submission = { draw: boolean; score_input: Partial<ScoreInput> }
+// Det som skickas i submit_score: rådata (Vy 1–3, oavgjort) eller en direkt slutpoäng.
+export type Submission = { draw: boolean; score_input: Partial<ScoreInput> } | { final_points: number; mahjong: boolean }
+// En inlämning som servern skickar tillbaka i submissions (score_input null = direkt), eller en som vi skickat.
+export type AnySubmission = {
+  draw?: boolean
+  mahjong?: boolean
+  score_input?: Partial<ScoreInput> | null
+  final_points?: number | null
+}
 
-// Mahjong-fälten ligger kvar när man byter svar, så att de inte försvinner om man ångrar sig.
-export type Draft = Omit<ScoreInput, 'mahjong'> & { outcome: Outcome | null; mahjong: MahjongInput }
+// Direkt slutpoäng eller "Jag kan inte räkna" (Vy 1–3).
+export type Mode = 'direct' | 'views'
+export type Step = 'outcome' | 'points' | 1 | 2 | 3 | 'confirm' | 'waiting'
+
+// Alla fält ligger kvar när man byter svar eller läge, så att inget försvinner om man ångrar sig.
+// points är fältets text som den skrivits.
+export type Draft = Omit<ScoreInput, 'mahjong'> & { outcome: Outcome | null; mahjong: MahjongInput; mode: Mode; points: string }
 
 const NO_MAHJONG: MahjongInput = {
   from_wall: false,
@@ -52,13 +65,41 @@ export function emptyDraft(): Draft {
     round_wind_sets: 0,
     own_wind_sets: 0,
     mahjong: { ...NO_MAHJONG },
+    mode: 'direct',
+    points: '',
   }
+}
+
+// Stegen följer svaret på "Hur slutade ronden?" och läget. Vid oavgjort hoppas allt över.
+export function path(d: Draft): Step[] | null {
+  if (!d.outcome) return null
+  if (d.outcome === 'draw') return ['outcome', 'confirm']
+  if (d.mode === 'direct') return ['outcome', 'points']
+  return d.outcome === 'mahjong' ? ['outcome', 1, 2, 3, 'confirm'] : ['outcome', 1, 2, 'confirm']
+}
+
+// Blanksteg tillåts, så att "1 280" går att skriva.
+const digits = (d: Draft) => d.points.replace(/\s/g, '')
+
+export function pointsValue(d: Draft): number {
+  return Number(digits(d))
+}
+
+// Samma regler och texter som backend (store.py, Beslut 46–47).
+export function directError(d: Draft): string | null {
+  const n = pointsValue(d)
+  if (!/^-?\d+$/.test(digits(d)) || !Number.isSafeInteger(n)) return 'Ange ett heltal.'
+  if (n < 0) return 'Slutpoängen kan inte vara negativ.'
+  if (n % 2) return 'Slutpoängen är alltid ett jämnt tal.'
+  if (d.outcome === 'mahjong' && n < 20) return 'Mahjong ger minst 20 poäng.'
+  return null
 }
 
 export function toSubmission(d: Draft): Submission {
   // Vid oavgjort ignoreras poängen ändå, så inget skickas.
   if (d.outcome === 'draw') return { draw: true, score_input: {} }
-  const { outcome, mahjong, ...rest } = d
+  if (d.mode === 'direct') return { final_points: pointsValue(d), mahjong: d.outcome === 'mahjong' }
+  const { outcome, mahjong, mode: _mode, points: _points, ...rest } = d // mode och points hör inte till score_input
   return {
     draw: false,
     score_input: {
@@ -70,13 +111,11 @@ export function toSubmission(d: Draft): Submission {
   }
 }
 
-export function fromSubmission({ draw, score_input: s }: Submission): Draft {
-  return {
-    ...emptyDraft(),
-    ...s,
-    outcome: draw ? 'draw' : s.mahjong ? 'mahjong' : 'other',
-    mahjong: { ...NO_MAHJONG, ...s.mahjong },
-  }
+export function fromSubmission({ draw, mahjong, score_input: s, final_points }: AnySubmission): Draft {
+  if (draw) return { ...emptyDraft(), outcome: 'draw' }
+  const outcome = (mahjong ?? !!s?.mahjong) ? 'mahjong' : 'other'
+  if (!s) return { ...emptyDraft(), outcome, points: String(final_points) }
+  return { ...emptyDraft(), ...s, outcome, mode: 'views', mahjong: { ...NO_MAHJONG, ...s.mahjong } }
 }
 
 export function groups(d: Draft): number {
@@ -155,12 +194,19 @@ export function bonusTiles(d: Draft, wind: Wind) {
   }
 }
 
-// Ny rond eller omladdning: har jag redan lämnat in visas väntläget med serverns version, annars Vy 1.
-export function restore(mine: Submission | undefined): { draft: Draft; step: 1 | 'waiting' } {
-  return mine ? { draft: fromSubmission(mine), step: 'waiting' } : { draft: emptyDraft(), step: 1 }
+// Ny rond eller omladdning: har jag redan lämnat in visas väntläget med serverns version, annars första steget.
+export function restore(mine: AnySubmission | undefined): { draft: Draft; step: 'outcome' | 'waiting' } {
+  return mine ? { draft: fromSubmission(mine), step: 'waiting' } : { draft: emptyDraft(), step: 'outcome' }
 }
 
-// Har servern tagit emot just det jag skickade? Servern skickar tillbaka score_input som den kom.
-export function sameSubmission(a: Submission, b: Submission): boolean {
-  return JSON.stringify([a.draw, a.score_input]) === JSON.stringify([b.draw, b.score_input])
+// "Ändra min inmatning" börjar där förra inlämningen matades in (Beslut 52).
+export function editStep(d: Draft): Step {
+  return d.outcome === 'draw' ? 'outcome' : d.mode === 'direct' ? 'points' : 1
+}
+
+// Har servern tagit emot just det jag skickade? Servern skickar tillbaka score_input som den kom,
+// och vid direkt slutpoäng score_input null med talet och mahjong.
+export function sameSubmission(a: AnySubmission, b: AnySubmission): boolean {
+  const key = (s: AnySubmission) => JSON.stringify(s.score_input ? [s.draw, s.score_input] : [s.final_points, s.mahjong])
+  return key(a) === key(b)
 }

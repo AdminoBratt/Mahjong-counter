@@ -386,6 +386,12 @@ button:disabled {
   font-family: var(--font-mono);
 }
 
+/* Den direkta slutpoängen upprepad stort under fältet, så att en extra nolla syns. */
+.echo {
+  margin: 0;
+  font-size: 2rem;
+}
+
 .sets {
   display: grid;
   gap: 8px;

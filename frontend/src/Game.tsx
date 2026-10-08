@@ -1,8 +1,10 @@
-import { useState, type Dispatch, type SetStateAction } from 'react'
+import { useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from 'react'
 import { Navigate, useOutletContext, useParams } from 'react-router-dom'
 
 import {
   bonusTiles,
+  directError,
+  editStep,
   emptyDraft,
   fromSubmission,
   groups,
@@ -11,6 +13,8 @@ import {
   mahjongBlocked,
   mahjongError,
   majors,
+  path,
+  pointsValue,
   restore,
   sameSubmission,
   toSubmission,
@@ -18,6 +22,7 @@ import {
   type MahjongDoubling,
   type MahjongInput,
   type Outcome,
+  type Step,
   type Submission,
 } from './draft.ts'
 import {
@@ -32,8 +37,6 @@ import {
   type Wind,
 } from './useLobby.ts'
 
-type Step = 1 | 2 | 3 | 'confirm' | 'waiting'
-
 const OUTCOMES: [Outcome, string][] = [
   ['mahjong', 'Jag gjorde Mahjong'],
   ['other', 'Någon annan gjorde Mahjong'],
@@ -41,9 +44,9 @@ const OUTCOMES: [Outcome, string][] = [
 ]
 const OUTCOME_NAME = Object.fromEntries(OUTCOMES) as Record<Outcome, string>
 
-// Antalet steg följer svaret på "Hur slutade ronden?". Vid oavgjort hoppas dubblingarna över.
-const STEPS: Record<Outcome, Step[]> = { mahjong: [1, 2, 3, 'confirm'], other: [1, 2, 'confirm'], draw: [1, 'confirm'] }
 const STEP_NAME: Record<Step, string> = {
+  outcome: 'Rondens utfall',
+  points: 'Dina poäng',
   1: 'Baspoäng',
   2: 'Allmänna dubblingar',
   3: 'Mahjong-dubblingar',
@@ -55,6 +58,8 @@ const STEP_NAME: Record<Step, string> = {
 const signed = new Intl.NumberFormat('sv-SE', { signDisplay: 'exceptZero' }).format
 const tone = (n: number) => (n > 0 ? 'positive' : n < 0 ? 'negative' : '')
 const num = new Intl.NumberFormat('sv-SE').format
+// Direkt slutpoäng saknar baspoäng och dubblingar (Beslut 48).
+const dash = (n: number | null) => (n === null ? '–' : num(n))
 // Rubriken får fokus när den byter mellan resultat och inmatning. Stabil funktion: körs bara vid mount.
 const focus = (el: HTMLElement | null) => el?.focus()
 
@@ -63,7 +68,7 @@ export default function Game() {
   const { nickname, players, gameStatus, currentRound, lastRound, actionError, status, send } = useOutletContext<Session>()
   const me = players.find((p) => p.nickname.toLowerCase() === nickname.toLowerCase())
   const [draft, setDraft] = useState(emptyDraft)
-  const [step, setStep] = useState<Step>(1)
+  const [step, setStep] = useState<Step>('outcome')
   const [roundId, setRoundId] = useState<string | null>(null)
   const [sent, setSent] = useState<Submission | null>(null) // väntar på svar från servern
   const [editing, setEditing] = useState(false) // ändrar en inlämning som redan gäller
@@ -98,9 +103,18 @@ export default function Game() {
   // Resultatet visas tills jag klickar "Nästa rond" eller lämnar in i nästa rond. Inget sparas lokalt,
   // så en omladdning före inlämning visar det igen.
   const result = lastRound && !mine && dismissed !== lastRound.round_id ? lastRound : null
-  const steps = draft.outcome ? STEPS[draft.outcome] : null
+  const steps = path(draft)
   const next = () => steps && setStep(steps[steps.indexOf(step) + 1])
   const back = () => steps && setStep(steps[steps.indexOf(step) - 1])
+  // "Jag kan inte räkna" och tillbaka igen. Både talet och vyernas val ligger kvar i utkastet.
+  const toViews = () => {
+    setDraft((d) => ({ ...d, mode: 'views' }))
+    setStep(1)
+  }
+  const toDirect = () => {
+    setDraft((d) => ({ ...d, mode: 'direct' }))
+    setStep('points')
+  }
 
   function submit() {
     const submission = toSubmission(draft)
@@ -110,10 +124,25 @@ export default function Game() {
   }
 
   function edit() {
-    if (mine) setDraft(fromSubmission(mine))
+    if (!mine) return
+    const d = fromSubmission(mine)
+    setDraft(d)
     setEditing(true)
-    setStep(1)
+    setStep(editStep(d))
   }
+
+  // Under både bekräftelsen och fältet för direkt slutpoäng.
+  const submitNotes = (
+    <>
+      {editing && <p className="muted">Din förra inlämning gäller tills du skickar in igen.</p>}
+      {/* wrong_round kan bara komma när ronden avslutats under en ändring, och täcks av raden ovan. */}
+      {actionError && actionError.code !== 'wrong_round' && (
+        <p role="alert" className="error">
+          {ERROR_TEXT[actionError.code] ?? actionError.message}
+        </p>
+      )}
+    </>
+  )
 
   return (
     <div className="game">
@@ -152,8 +181,22 @@ export default function Game() {
 
       {result ? (
         <ResultView result={result} players={players} meId={me.id} onNext={() => setDismissed(result.round_id)} />
+      ) : step === 'outcome' ? (
+        <OutcomeView draft={draft} setDraft={setDraft} onNext={next} />
+      ) : step === 'points' ? (
+        <PointsView
+          draft={draft}
+          setDraft={setDraft}
+          sending={sent !== null}
+          offline={status !== 'open'}
+          onBack={back}
+          onViews={toViews}
+          onSubmit={submit}
+        >
+          {submitNotes}
+        </PointsView>
       ) : step === 1 ? (
-        <BaseView draft={draft} setDraft={setDraft} wind={me.wind} onNext={next} />
+        <BaseView draft={draft} setDraft={setDraft} wind={me.wind} onNext={next} onBack={toDirect} />
       ) : step === 2 ? (
         <DoublingsView
           draft={draft}
@@ -172,13 +215,7 @@ export default function Game() {
             <Summary draft={draft} wind={me.wind} />
           </section>
           <p className="muted">Poängen räknas ut av servern när du skickat in.</p>
-          {editing && <p className="muted">Din förra inlämning gäller tills du skickar in igen.</p>}
-          {/* wrong_round kan bara komma när ronden avslutats under en ändring, och täcks av raden ovan. */}
-          {actionError && actionError.code !== 'wrong_round' && (
-            <p role="alert" className="error">
-              {ERROR_TEXT[actionError.code] ?? actionError.message}
-            </p>
-          )}
+          {submitNotes}
           <div className="actions">
             <button className="secondary" onClick={back} disabled={sent !== null}>
               Tillbaka
@@ -201,6 +238,7 @@ type ResultProps = { result: RoundResult; players: Player[]; meId: string; onNex
 function ResultView({ result, players, meId, onNext }: ResultProps) {
   const winner = players.find((p) => p.id === result.winner_id)
   const draw = !winner
+  const direct = !draw && players.some((p) => result.payments[p.id].base_points === null)
   return (
     <>
       <p className="result-outcome">
@@ -232,8 +270,8 @@ function ResultView({ result, players, meId, onNext }: ResultProps) {
                     {p === winner && <span className="tag">Mahjong</span>}
                   </th>
                   <td>{WIND_NAME[pay.wind]}</td>
-                  <td className="num mono">{draw ? '–' : num(pay.base_points)}</td>
-                  <td className="num mono">{draw ? '–' : pay.doublings}</td>
+                  <td className="num mono">{draw ? '–' : dash(pay.base_points)}</td>
+                  <td className="num mono">{draw ? '–' : dash(pay.doublings)}</td>
                   <td className="num mono">{draw ? '–' : num(pay.final_points)}</td>
                   <td className={`num mono big ${tone(pay.payment_delta)}`}>{signed(pay.payment_delta)}</td>
                   <td className={`num mono big ${tone(total)}`}>{signed(total)}</td>
@@ -244,6 +282,7 @@ function ResultView({ result, players, meId, onNext }: ResultProps) {
           </tbody>
         </table>
       </div>
+      {direct && <p className="muted">Baspoäng och dubblingar visas som – när slutpoängen är angiven direkt av spelaren.</p>}
       <p className="muted">
         Betalningar till och från Öst dubblas. Förlorarna gör upp sinsemellan. Summan av alla betalningar är 0.
       </p>
@@ -314,7 +353,7 @@ function WaitingView({ mine, wind, round, players, meId, onEdit }: WaitingProps)
           <h2>Ronden kan inte avslutas</h2>
           <p>
             {CONFLICT_TEXT[round.conflict]({
-              mahjong: names((s) => !!s.score_input.mahjong),
+              mahjong: names((s) => s.mahjong),
               draw: names((s) => s.draw),
             })}
           </p>
@@ -330,18 +369,19 @@ function WaitingView({ mine, wind, round, players, meId, onEdit }: WaitingProps)
             <dl className="calc">
               <div>
                 <dt>Baspoäng</dt>
-                <dd className="mono">{mine.base_points}</dd>
+                <dd className="mono">{dash(mine.base_points)}</dd>
               </div>
               <div>
                 <dt>Dubblingar</dt>
-                <dd className="mono">{mine.doublings}</dd>
+                <dd className="mono">{dash(mine.doublings)}</dd>
               </div>
               <div>
                 <dt>Slutpoäng</dt>
-                <dd className="mono">{mine.final_points}</dd>
+                <dd className="mono">{num(mine.final_points)}</dd>
               </div>
             </dl>
           )}
+          {mine.score_input === null && <p className="muted">Slutpoängen är angiven av spelaren.</p>}
           <Summary draft={fromSubmission(mine)} wind={wind} />
         </section>
 
@@ -388,7 +428,7 @@ function Summary({ draft: d, wind }: { draft: Draft; wind: Wind }) {
         .map((n) => `${n} ${WINDS[n - 1][1]}${WINDS[n - 1][0] === wind ? ' (egen)' : ''}`),
     )
   const rows: [string, string][] = [['Resultat', OUTCOME_NAME[d.outcome]]]
-  if (d.outcome !== 'draw') {
+  if (d.mode === 'views' && d.outcome !== 'draw') {
     rows.push(
       ['3-följder', String(d.chows)],
       [
@@ -407,7 +447,7 @@ function Summary({ draft: d, wind }: { draft: Draft; wind: Wind }) {
       ['3tal/4tal i egen vind', yesNo(d.own_wind_sets === 1)],
     )
   }
-  if (d.outcome === 'mahjong') {
+  if (d.mode === 'views' && d.outcome === 'mahjong') {
     const picked = (options: [keyof MahjongInput, string][]) =>
       list(options.filter(([k]) => d.mahjong[k]).map(([, label]) => label))
     rows.push(['Mahjong-bonusar', picked(MAHJONG_BONUSES)], ['Mahjong-dubblingar', picked(MAHJONG_DOUBLINGS)])
@@ -433,8 +473,110 @@ type ViewProps = {
   onNext: () => void
 }
 
+// Första steget. Svaret avgör vilka steg som följer (path i draft.ts).
+function OutcomeView({ draft, setDraft, onNext }: Omit<ViewProps, 'wind'>) {
+  return (
+    <>
+      <fieldset className="options">
+        <legend>Hur slutade ronden?</legend>
+        {OUTCOMES.map(([value, label]) => (
+          <label key={value} className="option">
+            <input
+              type="radio"
+              name="outcome"
+              checked={draft.outcome === value}
+              onChange={() => setDraft((d) => ({ ...d, outcome: value }))}
+            />
+            {label}
+          </label>
+        ))}
+      </fieldset>
+      {!draft.outcome && <p className="muted">Välj hur ronden slutade för att gå vidare.</p>}
+      <div className="actions">
+        <button className="primary" disabled={!draft.outcome} onClick={onNext}>
+          Nästa
+        </button>
+      </div>
+    </>
+  )
+}
+
+type PointsProps = Omit<ViewProps, 'wind' | 'onNext'> & {
+  sending: boolean
+  offline: boolean
+  onBack: () => void
+  onViews: () => void
+  onSubmit: () => void
+  children: ReactNode
+}
+
+// Slutpoängen som spelaren räknat själv. Samma kontroller som backend (directError). Talet visas stort
+// och på knappen, så att en extra nolla syns före inskick. Betalningarna räknar servern.
+function PointsView({ draft, setDraft, sending, offline, onBack, onViews, onSubmit, children }: PointsProps) {
+  const [touched, setTouched] = useState(false) // felet visas när fältet lämnats eller vid Skicka
+  const input = useRef<HTMLInputElement>(null)
+  const error = directError(draft)
+  const value = error ? null : pointsValue(draft)
+  const showError = touched && error !== null
+
+  function send() {
+    if (error === null) return onSubmit()
+    setTouched(true)
+    input.current?.focus()
+  }
+
+  return (
+    <>
+      <section className="card">
+        <div className="field">
+          <label htmlFor="points">Dina poäng för ronden</label>
+          <p id="points-hint" className="muted">
+            Poängen på din hand. Det är inte vad du får eller betalar, det räknar servern ut.
+          </p>
+          {/* type="text": type="number" ger tom sträng för ogiltig text, då går felet inte att förklara. */}
+          <input
+            id="points"
+            ref={input}
+            type="text"
+            inputMode="numeric"
+            autoComplete="off"
+            className="count"
+            value={draft.points}
+            aria-invalid={showError}
+            aria-describedby="points-hint points-echo points-error"
+            onChange={(e) => setDraft((d) => ({ ...d, points: e.target.value }))}
+            onBlur={() => setTouched(true)}
+          />
+          {value !== null && (
+            <p id="points-echo" className="echo mono">
+              {num(value)}
+            </p>
+          )}
+          {showError && (
+            <p id="points-error" className="error">
+              {error}
+            </p>
+          )}
+        </div>
+      </section>
+      {children}
+      <div className="actions">
+        <button className="secondary" onClick={onBack} disabled={sending}>
+          Tillbaka
+        </button>
+        <button className="secondary" onClick={onViews} disabled={sending}>
+          Jag kan inte räkna
+        </button>
+        <button className="primary" onClick={send} disabled={sending || offline}>
+          {sending ? 'Skickar…' : value !== null ? `Skicka ${num(value)}` : 'Skicka in'}
+        </button>
+      </div>
+    </>
+  )
+}
+
 // Vy 1. Bara rådata, inga poäng visas: backend räknar allt.
-function BaseView({ draft, setDraft, wind, onNext }: ViewProps) {
+function BaseView({ draft, setDraft, wind, onNext, onBack }: ViewProps & { onBack: () => void }) {
   const update = (patch: Partial<Draft>) => setDraft((d) => ({ ...d, ...patch }))
   const updateMahjong = (patch: Partial<Draft['mahjong']>) =>
     setDraft((d) => ({ ...d, mahjong: { ...d.mahjong, ...patch } }))
@@ -454,143 +596,133 @@ function BaseView({ draft, setDraft, wind, onNext }: ViewProps) {
 
   return (
     <>
-      <fieldset className="options">
-        <legend>Hur slutade ronden?</legend>
-        {OUTCOMES.map(([value, label]) => (
-          <label key={value} className="option">
-            <input type="radio" name="outcome" checked={outcome === value} onChange={() => update({ outcome: value })} />
-            {label}
-          </label>
-        ))}
-      </fieldset>
-      {!outcome && <p className="muted">Välj hur ronden slutade för att gå vidare.</p>}
+      <div className="score-grid">
+        <section className="card" aria-labelledby="groups-heading">
+          <h2 id="groups-heading">Grupper</h2>
 
-      {outcome && outcome !== 'draw' && (
-        <div className="score-grid">
-          <section className="card" aria-labelledby="groups-heading">
-            <h2 id="groups-heading">Grupper</h2>
+          <div className="field">
+            <label htmlFor="chows">Antal 3-följder</label>
+            <input
+              id="chows"
+              type="number"
+              className="count"
+              min={0}
+              max={maxChows}
+              value={draft.chows}
+              aria-describedby="chows-hint"
+              onChange={(e) => update({ chows: Math.max(0, Math.min(maxChows, Math.floor(Number(e.target.value)) || 0)) })}
+            />
+            <p id="chows-hint" className="muted">Ger 0p men räknas som grupp. Högst {maxChows}.</p>
+          </div>
 
-            <div className="field">
-              <label htmlFor="chows">Antal 3-följder</label>
-              <input
-                id="chows"
-                type="number"
-                className="count"
-                min={0}
-                max={maxChows}
-                value={draft.chows}
-                aria-describedby="chows-hint"
-                onChange={(e) => update({ chows: Math.max(0, Math.min(maxChows, Math.floor(Number(e.target.value)) || 0)) })}
-              />
-              <p id="chows-hint" className="muted">Ger 0p men räknas som grupp. Högst {maxChows}.</p>
-            </div>
-
-            <ol className="sets">
-              {draft.sets.map((s, i) => (
-                <li key={i} className="set-row">
-                  <span className="set-name">3tal/4tal {i + 1}</span>
-                  <Choice<3 | 4>
-                    legend="Storlek"
-                    name={`set-${i}-size`}
-                    value={s.size}
-                    options={[[3, '3tal'], [4, '4tal']]}
-                    onChange={(size) => updateSet(i, { size })}
-                  />
-                  <Choice
-                    legend="Var"
-                    name={`set-${i}-concealed`}
-                    value={s.concealed}
-                    options={[[false, 'På bordet'], [true, 'På hand']]}
-                    onChange={(concealed) => updateSet(i, { concealed })}
-                  />
-                  <Choice
-                    legend="Brickor"
-                    name={`set-${i}-major`}
-                    value={s.major}
-                    options={[[false, '2–8'], [true, '1, 9, vind, drake']]}
-                    onChange={(major) => updateSet(i, { major })}
-                  />
-                  <button
-                    className="secondary"
-                    aria-label={`Ta bort 3tal/4tal ${i + 1}`}
-                    onClick={() => update({ sets: draft.sets.filter((_, j) => j !== i) })}
-                  >
-                    Ta bort
-                  </button>
-                </li>
-              ))}
-            </ol>
-
-            <div className="field">
-              <button
-                className="secondary add-set"
-                disabled={groups(draft) >= 4}
-                aria-describedby="groups-status"
-                onClick={() => update({ sets: [...draft.sets, { size: 3, concealed: false, major: false }] })}
-              >
-                Lägg till 3tal/4tal
-              </button>
-              <p id="groups-status" className="muted">{groups(draft)} av 4 grupper.</p>
-              {error && <p className="error">{error}</p>}
-            </div>
-
-            <label className="option">
-              <input
-                type="checkbox"
-                checked={draft.scoring_pair}
-                onChange={(e) => update({ scoring_pair: e.target.checked })}
-              />
-              Par i drake, rondens vind eller egen vind
-            </label>
-          </section>
-
-          <section className="card" aria-labelledby="bonus-heading">
-            <h2 id="bonus-heading">Blommor och årstider</h2>
-            {(['flowers', 'seasons'] as const).map((key) => (
-              <fieldset key={key} className="options">
-                <legend>{key === 'flowers' ? 'Blommor' : 'Årstider'}</legend>
-                {WINDS.map(([w, name], i) => (
-                  <label key={w} className="option">
-                    <input
-                      type="checkbox"
-                      checked={draft[key].includes(i + 1)}
-                      onChange={() => update({ [key]: toggle(draft[key], i + 1) })}
-                    />
-                    {i + 1} {name}
-                    {w === wind && <span className="muted"> (din vind)</span>}
-                  </label>
-                ))}
-              </fieldset>
+          <ol className="sets">
+            {draft.sets.map((s, i) => (
+              <li key={i} className="set-row">
+                <span className="set-name">3tal/4tal {i + 1}</span>
+                <Choice<3 | 4>
+                  legend="Storlek"
+                  name={`set-${i}-size`}
+                  value={s.size}
+                  options={[[3, '3tal'], [4, '4tal']]}
+                  onChange={(size) => updateSet(i, { size })}
+                />
+                <Choice
+                  legend="Var"
+                  name={`set-${i}-concealed`}
+                  value={s.concealed}
+                  options={[[false, 'På bordet'], [true, 'På hand']]}
+                  onChange={(concealed) => updateSet(i, { concealed })}
+                />
+                <Choice
+                  legend="Brickor"
+                  name={`set-${i}-major`}
+                  value={s.major}
+                  options={[[false, '2–8'], [true, '1, 9, vind, drake']]}
+                  onChange={(major) => updateSet(i, { major })}
+                />
+                <button
+                  className="secondary"
+                  aria-label={`Ta bort 3tal/4tal ${i + 1}`}
+                  onClick={() => update({ sets: draft.sets.filter((_, j) => j !== i) })}
+                >
+                  Ta bort
+                </button>
+              </li>
             ))}
-          </section>
+          </ol>
 
-          {outcome === 'mahjong' && (
-            <section className="card" aria-labelledby="mahjong-heading">
-              <h2 id="mahjong-heading">Mahjong-bonusar</h2>
-              <fieldset className="options" aria-describedby="mahjong-hint">
-                <legend>Vinnande bricka</legend>
-                {MAHJONG_BONUSES.map(([key, label]) => (
-                  <label key={key} className="option">
-                    <input
-                      type="checkbox"
-                      checked={m[key]}
-                      disabled={bonusDisabled[key]}
-                      onChange={(e) => updateMahjong({ [key]: e.target.checked })}
-                    />
-                    {label}
-                  </label>
-                ))}
-              </fieldset>
-              <p id="mahjong-hint" className="muted">
-                Sprängt 4tal kan inte kombineras med Från muren eller Lös bricka.
-              </p>
-            </section>
-          )}
-        </div>
-      )}
+          <div className="field">
+            <button
+              className="secondary add-set"
+              disabled={groups(draft) >= 4}
+              aria-describedby="groups-status"
+              onClick={() => update({ sets: [...draft.sets, { size: 3, concealed: false, major: false }] })}
+            >
+              Lägg till 3tal/4tal
+            </button>
+            <p id="groups-status" className="muted">{groups(draft)} av 4 grupper.</p>
+            {error && <p className="error">{error}</p>}
+          </div>
+
+          <label className="option">
+            <input
+              type="checkbox"
+              checked={draft.scoring_pair}
+              onChange={(e) => update({ scoring_pair: e.target.checked })}
+            />
+            Par i drake, rondens vind eller egen vind
+          </label>
+        </section>
+
+        <section className="card" aria-labelledby="bonus-heading">
+          <h2 id="bonus-heading">Blommor och årstider</h2>
+          {(['flowers', 'seasons'] as const).map((key) => (
+            <fieldset key={key} className="options">
+              <legend>{key === 'flowers' ? 'Blommor' : 'Årstider'}</legend>
+              {WINDS.map(([w, name], i) => (
+                <label key={w} className="option">
+                  <input
+                    type="checkbox"
+                    checked={draft[key].includes(i + 1)}
+                    onChange={() => update({ [key]: toggle(draft[key], i + 1) })}
+                  />
+                  {i + 1} {name}
+                  {w === wind && <span className="muted"> (din vind)</span>}
+                </label>
+              ))}
+            </fieldset>
+          ))}
+        </section>
+
+        {outcome === 'mahjong' && (
+          <section className="card" aria-labelledby="mahjong-heading">
+            <h2 id="mahjong-heading">Mahjong-bonusar</h2>
+            <fieldset className="options" aria-describedby="mahjong-hint">
+              <legend>Vinnande bricka</legend>
+              {MAHJONG_BONUSES.map(([key, label]) => (
+                <label key={key} className="option">
+                  <input
+                    type="checkbox"
+                    checked={m[key]}
+                    disabled={bonusDisabled[key]}
+                    onChange={(e) => updateMahjong({ [key]: e.target.checked })}
+                  />
+                  {label}
+                </label>
+              ))}
+            </fieldset>
+            <p id="mahjong-hint" className="muted">
+              Sprängt 4tal kan inte kombineras med Från muren eller Lös bricka.
+            </p>
+          </section>
+        )}
+      </div>
 
       <div className="actions">
-        <button className="primary" disabled={!outcome || error !== null} onClick={onNext}>
+        <button className="secondary" onClick={onBack}>
+          Tillbaka
+        </button>
+        <button className="primary" disabled={error !== null} onClick={onNext}>
           Nästa
         </button>
       </div>

@@ -2,12 +2,15 @@ import { describe, expect, it } from 'vitest'
 
 import {
   bonusTiles,
+  directError,
+  editStep,
   emptyDraft,
   fromSubmission,
   groupsError,
   honorsError,
   mahjongBlocked,
   mahjongError,
+  path,
   restore,
   sameSubmission,
   toSubmission,
@@ -17,6 +20,7 @@ import {
 const hand: Draft = {
   ...emptyDraft(),
   outcome: 'mahjong',
+  mode: 'views',
   chows: 2,
   sets: [
     { size: 3, concealed: true, major: false },
@@ -47,7 +51,7 @@ describe('toSubmission', () => {
   })
 
   it('sends mahjong null when someone else won, even if bonuses were ticked earlier', () => {
-    expect(toSubmission({ ...hand, outcome: 'other' }).score_input.mahjong).toBeNull()
+    expect(toSubmission({ ...hand, outcome: 'other' })).toMatchObject({ score_input: { mahjong: null } })
   })
 
   it('sends an empty score_input on draw', () => {
@@ -73,6 +77,7 @@ describe('fromSubmission', () => {
     expect(fromSubmission({ draw: false, score_input: { chows: 1 } })).toEqual({
       ...emptyDraft(),
       outcome: 'other',
+      mode: 'views',
       chows: 1,
     })
   })
@@ -199,7 +204,7 @@ describe('restore (omladdning mitt i en rond)', () => {
   })
 
   it('starts on view 1 with an empty draft when I have not submitted', () => {
-    expect(restore(undefined)).toEqual({ draft: emptyDraft(), step: 1 })
+    expect(restore(undefined)).toEqual({ draft: emptyDraft(), step: 'outcome' })
   })
 })
 
@@ -210,5 +215,125 @@ describe('sameSubmission', () => {
 
   it('tells an older submission apart', () => {
     expect(sameSubmission(fromServer(hand), toSubmission({ ...hand, chows: 1 }))).toBe(false)
+  })
+})
+
+// Direkt slutpoäng (3.9b). Samma tal skrivs i fältet som i backend-exemplet: Öst 24 och Syd 8.
+const direct = (points: string, outcome: Draft['outcome'] = 'other'): Draft => ({ ...emptyDraft(), outcome, points })
+
+describe('path', () => {
+  it('has no steps until the outcome is chosen', () => {
+    expect(path(emptyDraft())).toBeNull()
+  })
+
+  it('goes straight to confirm on draw, in either mode', () => {
+    expect(path({ ...hand, outcome: 'draw' })).toEqual(['outcome', 'confirm'])
+    expect(path(direct('48', 'draw'))).toEqual(['outcome', 'confirm'])
+  })
+
+  it('has two steps with a direct score, for both winner and loser', () => {
+    expect(path(direct('48', 'mahjong'))).toEqual(['outcome', 'points'])
+    expect(path(direct('8'))).toEqual(['outcome', 'points'])
+  })
+
+  it('goes through the views when I cannot count', () => {
+    expect(path(hand)).toEqual(['outcome', 1, 2, 3, 'confirm'])
+    expect(path({ ...hand, outcome: 'other' })).toEqual(['outcome', 1, 2, 'confirm'])
+  })
+})
+
+describe('directError', () => {
+  it('requires an integer', () => {
+    for (const text of ['', '   ', '12.5', '12,5', 'abc', '1e3', '99999999999999999999']) {
+      expect(directError(direct(text))).toBe('Ange ett heltal.')
+    }
+  })
+
+  it('rejects negative numbers', () => {
+    expect(directError(direct('-10'))).toBe('Slutpoängen kan inte vara negativ.')
+  })
+
+  it('rejects odd numbers', () => {
+    expect(directError(direct('47'))).toBe('Slutpoängen är alltid ett jämnt tal.')
+  })
+
+  it('requires at least 20 for mahjong, but not for a loser', () => {
+    expect(directError(direct('10', 'mahjong'))).toBe('Mahjong ger minst 20 poäng.')
+    expect(directError(direct('18', 'mahjong'))).toBe('Mahjong ger minst 20 poäng.')
+    expect(directError(direct('20', 'mahjong'))).toBeNull()
+    expect(directError(direct('10'))).toBeNull()
+    expect(directError(direct('0'))).toBeNull()
+  })
+
+  it('reads " 20 " and "1 280" with spaces the same as without', () => {
+    expect(directError(direct(' 20 ', 'mahjong'))).toBeNull()
+    expect(directError(direct('1 280', 'mahjong'))).toBeNull()
+    expect(directError(direct('1 280'))).toBeNull() // hårt blanksteg, som sv-SE skriver tusental
+    expect(toSubmission(direct(' 20 ', 'mahjong'))).toEqual(toSubmission(direct('20', 'mahjong')))
+    expect(toSubmission(direct('1 280', 'mahjong'))).toEqual({ final_points: 1280, mahjong: true })
+  })
+})
+
+describe('toSubmission with a direct score', () => {
+  it('sends final_points and mahjong', () => {
+    expect(toSubmission(direct('48', 'mahjong'))).toEqual({ final_points: 48, mahjong: true })
+    expect(toSubmission(direct('8'))).toEqual({ final_points: 8, mahjong: false })
+  })
+
+  it('keeps both the number and the views when switching mode, and sends only the current one', () => {
+    const both: Draft = { ...hand, points: '48' }
+    expect(toSubmission(both)).toEqual(toSubmission(hand)) // vyerna: talet skickas inte
+    expect(toSubmission({ ...both, mode: 'direct' })).toEqual({ final_points: 48, mahjong: true })
+    expect(toSubmission({ ...both, outcome: 'draw' })).toEqual({ draw: true, score_input: {} })
+  })
+})
+
+// Som servern skickar tillbaka en direkt slutpoäng i submissions.
+const directFromServer = (final_points: number, mahjong: boolean) => ({
+  draw: false,
+  mahjong,
+  score_input: null,
+  base_points: null,
+  doublings: null,
+  final_points,
+})
+
+describe('a direct score from the server', () => {
+  it('restores the waiting view with the number in the field', () => {
+    const { draft, step } = restore(directFromServer(1280, true))
+    expect(step).toBe('waiting')
+    expect(draft).toEqual({ ...emptyDraft(), outcome: 'mahjong', points: '1280' })
+    expect(fromSubmission(directFromServer(8, false))).toEqual(direct('8'))
+  })
+
+  it('takes the outcome from mahjong, not score_input', () => {
+    expect(fromSubmission({ ...fromServer({ ...hand, outcome: 'other' }), mahjong: false }).outcome).toBe('other')
+    expect(fromSubmission({ ...fromServer(hand), mahjong: true }).outcome).toBe('mahjong')
+  })
+})
+
+describe('editStep ("Ändra min inmatning" follows the previous submission)', () => {
+  it('opens the number field for a direct score', () => {
+    expect(editStep(fromSubmission(directFromServer(24, false)))).toBe('points')
+  })
+
+  it('opens view 1 for a counted hand', () => {
+    expect(editStep(fromSubmission(fromServer(hand)))).toBe(1)
+  })
+
+  it('opens the outcome step for a draw', () => {
+    expect(editStep(fromSubmission(fromServer({ ...hand, outcome: 'draw' })))).toBe('outcome')
+  })
+})
+
+describe('sameSubmission with a direct score', () => {
+  it('matches the server echo of what I sent', () => {
+    expect(sameSubmission(directFromServer(1280, true), toSubmission(direct('1 280', 'mahjong')))).toBe(true)
+  })
+
+  it('tells another number, another outcome or a counted hand apart', () => {
+    expect(sameSubmission(directFromServer(128, true), toSubmission(direct('1280', 'mahjong')))).toBe(false)
+    expect(sameSubmission(directFromServer(1280, false), toSubmission(direct('1280', 'mahjong')))).toBe(false)
+    expect(sameSubmission(fromServer(hand), toSubmission(direct('48', 'mahjong')))).toBe(false)
   })
 })

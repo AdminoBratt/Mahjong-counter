@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 
 import { WS_URL } from './api.ts'
-import type { Submission } from './draft.ts'
+import type { ScoreInput } from './draft.ts'
 
 // Efter dessa koder går det inte att gå med igen med samma kod/namn.
 const STALE_SESSION_CODES = ['unknown_lobby', 'game_full', 'game_started', 'invalid_nickname']
@@ -16,8 +16,15 @@ export type Player = {
   total_score: number
 }
 export type GameStatus = 'waiting' | 'active' | 'finished'
-// Uträkningen kommer från servern och visas som den är.
-export type RoundSubmission = Submission & { base_points: number; doublings: number; final_points: number }
+// Uträkningen kommer från servern och visas som den är. Direkt slutpoäng: score_input, base_points och doublings null.
+export type RoundSubmission = {
+  draw: boolean
+  mahjong: boolean
+  score_input: Partial<ScoreInput> | null
+  base_points: number | null
+  doublings: number | null
+  final_points: number
+}
 export type Conflict = 'no_mahjong' | 'multiple_mahjong' | 'draw_disagreement'
 export type CurrentRound = {
   id: string
@@ -34,7 +41,7 @@ export type RoundResult = {
   winner_id: string | null // null = oavgjort
   payments: Record<
     string,
-    { wind: Wind; base_points: number; doublings: number; final_points: number; payment_delta: number }
+    { wind: Wind; base_points: number | null; doublings: number | null; final_points: number; payment_delta: number }
   >
   new_totals: Record<string, number>
   next_round_winds: Record<string, Wind>

@@ -147,7 +147,7 @@ Användaren anger drak- och vind-3tal. Blommor och årstider visas utifrån Vy 1
 32. Klienten räknar inga poäng. Uträkningen av en inlämning (`base_points`, `doublings`, `final_points`) kommer från servern i `submissions` och visas som den är. Före inskick visas bara valen i klartext.
 33. "Skicka in" är avstängd och visar "Skickar…" tills servern svarat, antingen med inlämningen i `lobby_update` eller med ett fel. Ingen extra bekräftelsedialog: bekräftelseskärmen är bekräftelsen och inlämningen kan ändras tills ronden är avslutad.
 34. Efter inskick visas väntläget med den egna uträkningen och vilka som lämnat in. Andras poäng och val visas inte förrän ronden är avslutad.
-35. "Ändra min inmatning" börjar i Vy 1, ifylld från serverns version. Den förra inlämningen gäller tills en ny skickas. Avslutas ronden under tiden visas "Rond N avslutades medan du ändrade. Din förra inlämning gällde."
+35. "Ändra min inmatning" börjar där förra inlämningen matades in (Beslut 52), ifylld från serverns version. Den förra inlämningen gäller tills en ny skickas. Avslutas ronden under tiden visas "Rond N avslutades medan du ändrade. Din förra inlämning gällde."
 36. Vid en konflikt visas en förklaring och knappen "Ändra min inmatning". Bara där visas vilka som angett Mahjong eller Oavgjort.
 37. Poäng och totaler visas med tecken (+/−). Noll visas utan tecken.
 38. Spelvyns huvud visar ställningen: varje spelares namn, vind och total, direkt från `players` i `lobby_update`.
@@ -162,3 +162,8 @@ Användaren anger drak- och vind-3tal. Blommor och årstider visas utifrån Vy 1
 47. En direkt slutpoäng måste vara jämn, eftersom alla baspoäng är jämna. Ett udda tal avvisas med "Slutpoängen är alltid ett jämnt tal". Det fångar tryckfel. Kontrollen görs i både backend och frontend.
 48. En direkt slutpoäng lagras utan baspoäng och dubblingar. De visas som "–" tillsammans med en text om att slutpoängen är angiven av spelaren.
 49. Betalningar, totaler och vindrotation räknas alltid i backend, oavsett om slutpoängen är uträknad eller angiven direkt.
+50. Inmatningen börjar med steget "Hur slutade ronden?". Oavgjort går vidare till Bekräfta (2 steg). Mahjong eller "Någon annan" går till fältet för slutpoängen (2 steg), där knappen skickar direkt. "Jag kan inte räkna" leder i stället till Vy 1–3 och Bekräfta (5 steg vid Mahjong, 4 annars). Stegindikatorn följer den väg som gäller just nu.
+51. Tillbaka från Vy 1 leder till fältet för slutpoängen, alltså ångrar "Jag kan inte räkna". Talet och valen i Vy 1–3 ligger kvar när man byter läge eller utfall. Bara det som gäller skickas.
+52. "Ändra min inmatning" följer förra inlämningens läge: direkt slutpoäng öppnar fältet med talet ifyllt, Vy 1–3 öppnar Vy 1, oavgjort öppnar "Hur slutade ronden?".
+53. Fältet har etiketten "Dina poäng för ronden" och hjälptexten "Poängen på din hand. Det är inte vad du får eller betalar, det räknar servern ut." Blanksteg tillåts ("1 280"). Ett giltigt tal visas stort under fältet och på knappen ("Skicka 1 280", sv-SE). Felet visas under fältet när fältet lämnats eller när man klickar Skicka. Skicka är avstängd medan anslutningen inte är öppen eller ett svar väntas.
+54. Vid direkt slutpoäng visar väntläget baspoäng och dubblingar som "–" och texten "Slutpoängen är angiven av spelaren." Rondresultatet visar "–" i samma kolumner och texten "Baspoäng och dubblingar visas som – när slutpoängen är angiven direkt av spelaren."
