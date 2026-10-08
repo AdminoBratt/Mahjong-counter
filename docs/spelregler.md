@@ -111,6 +111,14 @@ Systemet föreslår dubblingar automatiskt utifrån Vy 1. Användaren bekräftar
 - Enbart en serie
 - Två drakar + par av tredje
 
-## Oklarheter att bekräfta innan Fas 3
-- Betalningsexemplet ovan: kontrollera att siffrorna stämmer med era husregler.
-- "Öst inblandad" när Öst själv är vinnare: bekräfta att 2×-regeln tillämpas på alla tre betalningarna.
+## Beslut
+1. Från muren: en kryssruta ger både bonusen 2p och dubblingen 1×.
+2. Lös bricka räknas också som dragning från muren (10p + 2p + 1×). Sprängt 4tal kan inte kombineras med från muren eller lös bricka.
+3. Ett par som är både rondens vind och egen vind ger 2p. Ett 3tal/4tal som är både rondens vind och egen vind ger 2×.
+4. Alla 8 blommor + årstider är summan av alla 4 blommor och alla 4 årstider, alltså 6×, inte 12×.
+5. Egen blomma/årstid stackas med alla 4 blommor/årstider.
+6. "Bara följder" och "ingen följd" härleds från antalet följder och 3tal/4tal. Bonusen för bara följder kräver att paret inte är poänggivande.
+7. Två drakar + par av tredje ger 3× utöver 1× per drak-3tal, alltså 5×. Paret måste vara markerat som poänggivande.
+8. "Enbart 1or/9or/drakar/vindar" och "ingen följd" gäller båda (2×).
+9. Inget poängtak och ingen avrundning.
+10. Vinnaren måste ha exakt fyra grupper (följder + 3tal/4tal), övriga högst fyra.
