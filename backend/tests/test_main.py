@@ -259,7 +259,10 @@ def _start(client, stack):
 
 
 def _submit(ws, rnd, score_input, draw=False):
-    ws.send_json({"type": "submit_score", "round_id": rnd["id"], "score_input": score_input, "draw": draw})
+    msg = {"type": "submit_score", "round_id": rnd["id"], "draw": draw}
+    if score_input is not None:
+        msg["score_input"] = score_input
+    ws.send_json(msg)
 
 
 def _all(socks, type_):
@@ -379,7 +382,7 @@ def test_ws_rejoin_gets_own_submission():
         mine = _lobby(b)[1]["current_round"]["submissions"][ids[1]]
         # Uträkningen följer med, så klienten kan visa den utan att räkna själv.
         assert mine == {
-            "draw": True, "score_input": LOSER, "base_points": 2, "doublings": 0, "final_points": 2,
+            "draw": True, "mahjong": False, "score_input": LOSER, "base_points": 2, "doublings": 0, "final_points": 2,
         }
 
 
@@ -403,6 +406,7 @@ def test_ws_game_errors_only_to_sender():
             (rnd, "inte ett objekt", False, "invalid_message"),
             ({"id": "inte-uuid"}, LOSER, False, "invalid_message"),
             (rnd, LOSER, "ja", "invalid_message"),  # draw måste vara bool
+            (rnd, None, False, "invalid_message"),  # varken score_input eller final_points
         ]
         for r, inp, draw, err in bad:
             _submit(socks[0], r, inp, draw)
@@ -413,6 +417,88 @@ def test_ws_game_errors_only_to_sender():
         # Socketen lever, och de andra fick inget error: nästa meddelande är broadcasten.
         _submit(socks[0], rnd, LOSER)
         assert list(_all(socks, "lobby_update")["current_round"]["submissions"]) == [ids[0]]
+
+
+# --- 3.9a: slutpoäng angiven direkt ---
+
+# Öst: 3tal 1,9,vind,drake på hand (8) + på bordet (4) = 12p, ett drak-3tal 1× = 24p.
+EAST_24 = {
+    "sets": [{"size": 3, "concealed": True, "major": True}, {"size": 3, "concealed": False, "major": True}],
+    "dragon_sets": 1,
+}
+# Syd: två 3tal 2-8 på hand = 8p.
+SOUTH_8 = {"sets": [{"size": 3, "concealed": True, "major": False}] * 2}
+
+
+def _direct(ws, rnd, points, mahjong=False):
+    ws.send_json({"type": "submit_score", "round_id": rnd["id"], "final_points": points, "mahjong": mahjong})
+
+
+def test_ws_direct_score_errors():
+    client = TestClient(app.main.app)
+    with ExitStack() as stack:
+        code, socks, ids, msg = _start(client, stack)
+        rid = msg["current_round"]["id"]
+        base = {"type": "submit_score", "round_id": rid}
+        bad = [
+            ({"final_points": True}, "invalid_message"),  # bool är inte ett heltal
+            ({"final_points": 48.0}, "invalid_message"),
+            ({"final_points": "48"}, "invalid_message"),
+            ({"final_points": 48, "score_input": {}}, "invalid_message"),  # båda
+            ({"score_input": {}, "mahjong": True}, "invalid_message"),  # mahjong hör till final_points
+            ({"final_points": 0, "draw": True}, "invalid_message"),
+            ({"final_points": 48, "mahjong": "ja"}, "invalid_message"),
+            ({"final_points": -2}, "invalid_score"),
+            ({"final_points": 47}, "invalid_score"),
+            ({"final_points": 18, "mahjong": True}, "invalid_score"),
+        ]
+        for extra, err in bad:
+            socks[0].send_json({**base, **extra})
+            got = socks[0].receive_json()
+            assert got["type"] == "error" and got["code"] == err and got["message"], extra
+
+        _direct(socks[0], msg["current_round"], 20, mahjong=True)  # socketen lever
+        mine = _all(socks, "lobby_update")["current_round"]["submissions"][ids[0]]
+        assert mine == {
+            "draw": False, "mahjong": True, "score_input": None, "base_points": None, "doublings": None, "final_points": 20,
+        }
+
+
+def test_ws_mixed_round_live_equals_reload():
+    """Exemplet i spelregler.md: Nord vinner 48p, Öst 24p, Syd 8p, Väst 32p.
+    Nord och Väst anger slutpoängen direkt, Öst och Syd via vyerna."""
+    client = TestClient(app.main.app)
+    with ExitStack() as stack:
+        code, socks, ids, msg = _start(client, stack)
+        rnd = msg["current_round"]
+        _submit(socks[0], rnd, EAST_24)
+        _all(socks, "lobby_update")
+        _submit(socks[1], rnd, SOUTH_8)
+        _all(socks, "lobby_update")
+        _direct(socks[2], rnd, 32)
+        _all(socks, "lobby_update")
+        _direct(socks[3], rnd, 48, mahjong=True)
+
+        done = _all(socks, "round_complete")
+        nxt = _all(socks, "lobby_update")
+        assert done["winner_id"] == ids[3]
+        pay = done["payments"]
+        deltas = [pay[i]["payment_delta"] for i in ids]
+        assert deltas == [-80, -104, -8, 192] and sum(deltas) == 0
+        assert [pay[i]["final_points"] for i in ids] == [24, 8, 32, 48]
+        assert [(pay[i]["base_points"], pay[i]["doublings"]) for i in ids] == [(12, 1), (8, 0), (None, None), (None, None)]
+        assert done["new_totals"] == dict(zip(ids, [-80, -104, -8, 192]))
+        assert done["next_round_winds"] == dict(zip(ids, ["north", "east", "south", "west"]))
+        live = {k: v for k, v in done.items() if k != "type"}
+        assert nxt["last_round"] == live
+
+        # Omladdning: samma resultat.
+        socks[3].close()
+        _all(socks[:3], "lobby_update")
+        d = stack.enter_context(client.websocket_connect("/ws"))
+        _join(d, code, "D")
+        socks[3] = d
+        assert _all(socks, "lobby_update")["last_round"] == live
 
 
 def test_send_timeout_closes_socket(monkeypatch):

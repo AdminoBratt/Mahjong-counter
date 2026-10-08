@@ -43,12 +43,12 @@ scores       list[RoundScore]
 ## RoundScore
 ```
 game_player_id  UUID
-base_points     int
-doublings       int
-final_points    int   # base_points × 2^doublings
+base_points     int | None   # None = slutpoängen angiven direkt av spelaren
+doublings       int | None   # None = slutpoängen angiven direkt av spelaren
+final_points    int   # base_points × 2^doublings, eller angiven direkt av spelaren
 payment_delta   int   # netto efter betalningar (kan vara negativt)
 did_mahjong     bool = False
 draw            bool = False  # spelaren har valt oavgjort
-score_input     dict  # rådata från spelarens inmatning
+score_input     dict | None  # rådata från spelarens inmatning, None = slutpoängen angiven direkt
 wind            Wind  # spelarens vind i ronden (GamePlayer.wind har roterats när ronden avslutats)
 ```
