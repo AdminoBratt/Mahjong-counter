@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 
 import { WS_URL } from './api.ts'
+import type { Submission } from './draft.ts'
 
 // Efter dessa koder går det inte att gå med igen med samma kod/namn.
 const STALE_SESSION_CODES = ['unknown_lobby', 'game_full', 'game_started', 'invalid_nickname']
@@ -20,7 +21,7 @@ export type CurrentRound = {
   round_number: number
   round_wind: Wind
   conflict: null | 'no_mahjong' | 'multiple_mahjong' | 'draw_disagreement'
-  submissions: Record<string, { draw: boolean; score_input: Record<string, unknown> }>
+  submissions: Record<string, Submission>
 }
 export type Status = 'connecting' | 'open' | 'closed' | { error: string }
 
