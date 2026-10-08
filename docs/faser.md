@@ -41,9 +41,9 @@ Ingen databas: spelstate hålls i minnet (se CLAUDE.md). Ingen historik eller st
       Udda tal avvisas även i frontend. "Ändra min inmatning" följer förra inlämningens läge.
 
 ## Fas 4 — Spelvy (realtid)
-- [ ] **4.1** UI: Aktiv spelvy (totalpoäng per spelare, aktuell vind, rondnummer)
+- [x] **4.1** UI: Aktiv spelvy (totalpoäng per spelare, aktuell vind, rondnummer)
 - [ ] **4.2** UI: Poängkurva/graf (Chart.js eller Recharts)
-- [ ] **4.3** WebSocket: live-uppdateringar till alla spelare
+- [x] **4.3** WebSocket: live-uppdateringar till alla spelare
 - [ ] **4.4** UI: Avsluta spel-knapp + slutresultat
 - [ ] **4.5** Backend: Städa bort inaktiva och avslutade spel ur minnet efter en tid
   - Kom ihåg: stäng öppna sockets i `connections` och släpp låset i `locks` för spelet som städas bort.
