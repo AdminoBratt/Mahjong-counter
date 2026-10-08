@@ -133,3 +133,19 @@ def settle(points: dict[str, int], winner: str | None, east: str) -> dict[str, i
         delta[payee] += amount
         delta[payer] -= amount
     return delta
+
+
+NEXT_WIND: dict[Wind, Wind] = {"east": "north", "north": "west", "west": "south", "south": "east"}
+
+
+def rotate_winds(winds: dict[str, Wind], winner: str | None) -> dict[str, Wind]:
+    """Nästa ronds vindar per spelar-id. winner=None betyder oavgjort. Kastar ValueError vid ogiltig inmatning."""
+    if len(winds) != 4:
+        raise ValueError("Exakt fyra spelare")
+    if set(winds.values()) != set(NEXT_WIND):
+        raise ValueError("Varje vind exakt en gång")
+    if winner is not None and winner not in winds:
+        raise ValueError("Okänd vinnare")
+    if winner is None or winds[winner] == "east":
+        return dict(winds)
+    return {p: NEXT_WIND[w] for p, w in winds.items()}
