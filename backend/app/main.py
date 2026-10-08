@@ -145,7 +145,13 @@ def _lobby_msg(game: Game) -> dict:
             "round_wind": rnd.round_wind,
             "conflict": rnd.conflict(),
             "submissions": {
-                str(s.game_player_id): {"draw": s.draw, "score_input": s.score_input}
+                str(s.game_player_id): {
+                    "draw": s.draw,
+                    "score_input": s.score_input,
+                    "base_points": s.base_points,
+                    "doublings": s.doublings,
+                    "final_points": s.final_points,
+                }
                 for s in rnd.scores
             },
         },

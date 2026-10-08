@@ -22,7 +22,8 @@ SERVER → CLIENT (broadcast till alla i lobby):
                     # current_round: null tills spelet startat, annars
                     #   { id, round_number, round_wind,   # round_wind är alltid 'east' tills vidare
                     #     conflict,                       # null | 'no_mahjong' | 'multiple_mahjong' | 'draw_disagreement'
-                    #     submissions: { <player_id>: { draw, score_input } } }   # bara de som lämnat in
+                    #     submissions: { <player_id>: { draw, score_input,       # bara de som lämnat in
+                    #                                   base_points, doublings, final_points } } }
   round_complete    { round_id, round_number, winner_id,   # winner_id null = oavgjort
                       payments: { <player_id>: { base_points, doublings, final_points, payment_delta } },
                       new_totals: { <player_id>: int },
@@ -43,7 +44,8 @@ Efter `join_lobby` gäller:
   `ScoreInput` i `backend/app/scoring.py`, Mahjong anges i `score_input.mahjong`. En spelare får
   skicka in igen tills ronden är avslutad; den senaste gäller. Varje giltig inlämning ger
   `lobby_update` till alla. `submissions` syns för alla, så en spelare som återansluter får tillbaka
-  sin egen inmatning.
+  sin egen inmatning. `base_points`, `doublings` och `final_points` är serverns uträkning av
+  inlämningen; klienten visar dem som de är och räknar inget själv.
 - När ronden avslutas skickas `round_complete` först och sedan `lobby_update` med nästa rond.
   Kan ronden inte avslutas trots fyra inlämningar visas orsaken i `current_round.conflict`.
 - Ogiltiga meddelanden (inte JSON, inte ett objekt, okänd `type`, binär ram, `choose_wind` med

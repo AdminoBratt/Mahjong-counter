@@ -8,6 +8,8 @@ import {
   honorsError,
   mahjongBlocked,
   mahjongError,
+  restore,
+  sameSubmission,
   toSubmission,
   type Draft,
 } from './draft.ts'
@@ -172,5 +174,41 @@ describe('bonusTiles', () => {
       allSeasons: true,
       allEight: true,
     })
+  })
+})
+
+// Som servern skickar tillbaka en inlämning i lobby_update: via JSON, med uträkningen tillagd.
+const fromServer = (d: Draft) => ({
+  ...JSON.parse(JSON.stringify(toSubmission(d))),
+  base_points: 24,
+  doublings: 1,
+  final_points: 48,
+})
+
+describe('restore (omladdning mitt i en rond)', () => {
+  it('shows the waiting view with my submitted mahjong hand', () => {
+    const { draft, step } = restore(fromServer(hand))
+    expect(step).toBe('waiting')
+    expect(draft).toEqual({ ...hand, flowers: [1, 3] })
+  })
+
+  it('restores a submitted draw', () => {
+    const { draft, step } = restore(fromServer({ ...hand, outcome: 'draw' }))
+    expect(step).toBe('waiting')
+    expect(draft.outcome).toBe('draw')
+  })
+
+  it('starts on view 1 with an empty draft when I have not submitted', () => {
+    expect(restore(undefined)).toEqual({ draft: emptyDraft(), step: 1 })
+  })
+})
+
+describe('sameSubmission', () => {
+  it('matches what the server echoes back, ignoring the calculation', () => {
+    expect(sameSubmission(fromServer(hand), toSubmission(hand))).toBe(true)
+  })
+
+  it('tells an older submission apart', () => {
+    expect(sameSubmission(fromServer(hand), toSubmission({ ...hand, chows: 1 }))).toBe(false)
   })
 })

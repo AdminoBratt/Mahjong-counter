@@ -154,3 +154,13 @@ export function bonusTiles(d: Draft, wind: Wind) {
     allEight: allFlowers && allSeasons,
   }
 }
+
+// Ny rond eller omladdning: har jag redan lämnat in visas väntläget med serverns version, annars Vy 1.
+export function restore(mine: Submission | undefined): { draft: Draft; step: 1 | 'waiting' } {
+  return mine ? { draft: fromSubmission(mine), step: 'waiting' } : { draft: emptyDraft(), step: 1 }
+}
+
+// Har servern tagit emot just det jag skickade? Servern skickar tillbaka score_input som den kom.
+export function sameSubmission(a: Submission, b: Submission): boolean {
+  return JSON.stringify([a.draw, a.score_input]) === JSON.stringify([b.draw, b.score_input])
+}
