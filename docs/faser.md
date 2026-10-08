@@ -20,9 +20,9 @@ Ingen databas: spelstate hålls i minnet (se CLAUDE.md). Ingen historik eller st
 - [x] **3.1** Backend: Poängberäkningsmodul (baspoäng + dubblingar)
 - [x] **3.2** Backend: Betalningslogik
 - [x] **3.3** Backend: Vindrotationslogik
-- [ ] **3.4** API + WebSocket: `submit_score`, `round_complete`
+- [x] **3.4** API + WebSocket: `submit_score`, `round_complete`
   - [x] **3.4a** Backend: rondflöde i `GameStore` (`submit_score`, oavgjort, konflikter) + tester
-  - [ ] **3.4b** WebSocket: `submit_score`, `round_complete`, `current_round` i `lobby_update`, lås per lobby
+  - [x] **3.4b** WebSocket: `submit_score`, `round_complete`, `current_round` i `lobby_update`, lås per lobby
     - Kom ihåg: test att `round_complete` kommer före nya `lobby_update`; tillfälligt skript (committas inte)
       som spelar en rond med fyra spelare mot en riktig server.
 - [ ] **3.5** UI: Vy 1, Baspoäng (desktop-optimerad)
@@ -36,7 +36,7 @@ Ingen databas: spelstate hålls i minnet (se CLAUDE.md). Ingen historik eller st
 - [ ] **4.3** WebSocket: live-uppdateringar till alla spelare
 - [ ] **4.4** UI: Avsluta spel-knapp + slutresultat
 - [ ] **4.5** Backend: Städa bort inaktiva och avslutade spel ur minnet efter en tid
-  - Kom ihåg: stäng öppna sockets i `connections` för spelet som städas bort.
+  - Kom ihåg: stäng öppna sockets i `connections` och släpp låset i `locks` för spelet som städas bort.
 
 ## Fas 5 — Deployment (en tjänst på Railway, görs före Fas 3)
 - [x] **5.1** Backend: API under `/api`, FastAPI serverar byggd frontend med fallback till `index.html`

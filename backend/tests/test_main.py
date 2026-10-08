@@ -1,5 +1,8 @@
+import asyncio
 import importlib
 import re
+import uuid
+from contextlib import ExitStack
 
 import pytest
 from fastapi import FastAPI
@@ -230,3 +233,150 @@ def test_ws_choose_wind_broadcast_and_garbage_ignored():
         b.send_json({"type": "choose_wind", "wind": "south"})
         _, msg = _lobby(b)
         assert a.receive_json() == msg and msg["status"] == "active"
+
+
+# --- 3.4b: submit_score / round_complete ---
+
+WINNER = {"chows": 4, "mahjong": {}}  # 20 + 10 (bara följder) = 30p
+LOSER = {"sets": [{"size": 3, "concealed": False, "major": False}]}  # 2p
+
+
+def _start(client, stack):
+    """Fyra spelare A-D ansluter och väljer öst/syd/väst/nord. Returnerar (kod, sockets, ids, sista lobby_update)."""
+    code = client.post("/api/games").json()["lobby_code"]
+    socks = []
+    for n in "ABCD":
+        ws = stack.enter_context(client.websocket_connect("/ws"))
+        socks.append(ws)
+        _join(ws, code, n)
+        for s in socks:
+            _lobby(s)
+    for ws, wind in zip(socks, ("east", "south", "west", "north")):
+        ws.send_json({"type": "choose_wind", "wind": wind})
+        msgs = [_lobby(s)[1] for s in socks]
+    assert msgs[0]["status"] == "active" and all(m == msgs[0] for m in msgs)
+    return code, socks, [p["id"] for p in msgs[0]["players"]], msgs[0]
+
+
+def _submit(ws, rnd, score_input, draw=False):
+    ws.send_json({"type": "submit_score", "round_id": rnd["id"], "score_input": score_input, "draw": draw})
+
+
+def _all(socks, type_):
+    """Nästa meddelande på varje socket måste vara type_ och lika för alla."""
+    msgs = [s.receive_json() for s in socks]
+    assert all(m == msgs[0] for m in msgs) and msgs[0]["type"] == type_, msgs
+    return msgs[0]
+
+
+def test_ws_full_round():
+    client = TestClient(app.main.app)
+    with ExitStack() as stack:
+        code, socks, ids, msg = _start(client, stack)
+        rnd = msg["current_round"]
+        assert rnd["round_number"] == 1 and rnd["round_wind"] == "east"
+        assert rnd["conflict"] is None and rnd["submissions"] == {}
+
+        # D (nord) vinner 30p. A-C 2p var. Förlorarna lika -> inget sinsemellan.
+        for i, ws in enumerate(socks[:3]):
+            _submit(ws, rnd, LOSER)
+            cur = _all(socks, "lobby_update")["current_round"]
+            assert set(cur["submissions"]) == set(ids[: i + 1]) and cur["conflict"] is None
+        _submit(socks[3], rnd, WINNER)
+
+        done = _all(socks, "round_complete")  # före nya lobby_update
+        assert done["round_id"] == rnd["id"] and done["round_number"] == 1
+        assert done["winner_id"] == ids[3]
+        assert done["payments"][ids[3]] == {
+            "base_points": 30, "doublings": 0, "final_points": 30, "payment_delta": 120,
+        }
+        assert done["new_totals"] == dict(zip(ids, [-60, -30, -30, 120]))
+        assert done["next_round_winds"] == dict(zip(ids, ["north", "east", "south", "west"]))
+
+        nxt = _all(socks, "lobby_update")
+        assert nxt["current_round"]["round_number"] == 2
+        assert nxt["current_round"]["id"] != rnd["id"] and nxt["current_round"]["submissions"] == {}
+        assert [p["wind"] for p in nxt["players"]] == ["north", "east", "south", "west"]
+        assert [p["total_score"] for p in nxt["players"]] == [-60, -30, -30, 120]
+
+
+def test_ws_conflict_resolved():
+    client = TestClient(app.main.app)
+    with ExitStack() as stack:
+        code, socks, ids, msg = _start(client, stack)
+        rnd = msg["current_round"]
+        for ws, inp in zip(socks, (WINNER, LOSER, LOSER, WINNER)):
+            _submit(ws, rnd, inp)
+            cur = _all(socks, "lobby_update")["current_round"]
+        assert cur["conflict"] == "multiple_mahjong" and len(cur["submissions"]) == 4
+
+        _submit(socks[3], rnd, LOSER)  # D ångrar sin Mahjong
+        done = _all(socks, "round_complete")
+        assert done["winner_id"] == ids[0]
+        assert _all(socks, "lobby_update")["current_round"]["round_number"] == 2
+
+
+def test_ws_rejoin_gets_own_submission():
+    client = TestClient(app.main.app)
+    with ExitStack() as stack:
+        code, socks, ids, msg = _start(client, stack)
+        rnd = msg["current_round"]
+        _submit(socks[1], rnd, LOSER, draw=True)
+        _all(socks, "lobby_update")
+        socks[1].close()
+        cur = _all([socks[0], socks[2], socks[3]], "lobby_update")  # B frånkopplad
+        assert cur["players"][1]["connected"] is False
+
+        b = stack.enter_context(client.websocket_connect("/ws"))
+        _join(b, code, "b")
+        mine = _lobby(b)[1]["current_round"]["submissions"][ids[1]]
+        assert mine == {"draw": True, "score_input": LOSER}
+
+
+def test_ws_game_errors_only_to_sender():
+    client = TestClient(app.main.app)
+    with ExitStack() as stack:
+        # not_active: före vindvalet.
+        code = client.post("/api/games").json()["lobby_code"]
+        a = stack.enter_context(client.websocket_connect("/ws"))
+        _join(a, code, "A")
+        _lobby(a)
+        a.send_json({"type": "submit_score", "round_id": str(uuid.uuid4()), "score_input": {}})
+        assert a.receive_json()["code"] == "not_active"
+
+        code, socks, ids, msg = _start(client, stack)
+        rnd = msg["current_round"]
+        bad = [
+            ({**rnd, "id": str(uuid.uuid4())}, LOSER, False, "wrong_round"),
+            (rnd, {"chows": 5}, False, "invalid_score"),
+            (rnd, WINNER, True, "invalid_score"),  # oavgjort + Mahjong
+            (rnd, "inte ett objekt", False, "invalid_message"),
+            ({"id": "inte-uuid"}, LOSER, False, "invalid_message"),
+            (rnd, LOSER, "ja", "invalid_message"),  # draw måste vara bool
+        ]
+        for r, inp, draw, err in bad:
+            _submit(socks[0], r, inp, draw)
+            got = socks[0].receive_json()
+            assert got["type"] == "error" and got["code"] == err and got["message"]
+        socks[0].send_json({"type": "end_game"})  # okänd typ: ignoreras, inget svar
+
+        # Socketen lever, och de andra fick inget error: nästa meddelande är broadcasten.
+        _submit(socks[0], rnd, LOSER)
+        assert list(_all(socks, "lobby_update")["current_round"]["submissions"]) == [ids[0]]
+
+
+def test_send_timeout_closes_socket(monkeypatch):
+    monkeypatch.setattr(app.main, "SEND_TIMEOUT", 0.01)
+
+    class Slow:
+        closed = False
+
+        async def send_json(self, msg):
+            await asyncio.sleep(1)
+
+        async def close(self):
+            self.closed = True
+
+    ws = Slow()
+    asyncio.run(app.main._send(ws, {}))
+    assert ws.closed
