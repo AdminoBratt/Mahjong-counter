@@ -8,16 +8,21 @@ from urllib.parse import urlsplit
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, StringConstraints, ValidationError
+from pydantic import BaseModel, StrictBool, StringConstraints, ValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from app.store import Game, GameError, GameStore, Wind
+from app.store import Game, GameError, GameStore, Round, Wind
 
 app = FastAPI(title="Mahjong Score Tracker")
 store = GameStore()
 # Öppna sockets per lobby: lobbykod -> spelar-id -> socket.
 connections: dict[str, dict[uuid.UUID, WebSocket]] = {}
+# Ett lås per lobby runt "ändra state + skicka", så att broadcasts inte flätas ihop
+# och en klient får ett gammalt lobby_update sist.
+# ponytail: släpps först när spelet städas bort (4.5); ett Lock per lobby är försumbart.
+locks: dict[str, asyncio.Lock] = {}
 JOIN_TIMEOUT = 10  # sekunder att skicka join_lobby efter anslutning
+SEND_TIMEOUT = 3  # sekunder per sändning, sedan räknas socketen som död
 
 cors_origins = [
     o.strip()
@@ -82,13 +87,45 @@ class ChooseWind(BaseModel):
     wind: Wind
 
 
+class SubmitScore(BaseModel):
+    type: Literal["submit_score"]
+    round_id: uuid.UUID
+    score_input: dict
+    draw: StrictBool = False
+
+
+async def _close(ws: WebSocket) -> None:
+    try:
+        await asyncio.wait_for(ws.close(), SEND_TIMEOUT)
+    except Exception:
+        pass  # redan stängd eller död
+
+
+async def _send(ws: WebSocket, msg: dict) -> None:
+    """Misslyckad eller för långsam sändning = död socket: stäng, dess egen handler städar upp."""
+    try:
+        await asyncio.wait_for(ws.send_json(msg), SEND_TIMEOUT)
+    except Exception:
+        await _close(ws)
+
+
+def _error_msg(code: str, message: str) -> dict:
+    return {"type": "error", "code": code, "message": message}
+
+
 async def _error(ws: WebSocket, code: str, message: str) -> None:
-    await ws.send_json({"type": "error", "code": code, "message": message})
-    await ws.close()
+    await _send(ws, _error_msg(code, message))
+    await _close(ws)
 
 
-async def _broadcast_lobby(game: Game) -> None:
-    msg = {
+async def _broadcast(game: Game, msg: dict) -> None:
+    for ws in list(connections.get(game.lobby_code, {}).values()):
+        await _send(ws, msg)
+
+
+def _lobby_msg(game: Game) -> dict:
+    rnd = game.rounds[-1] if game.rounds else None
+    return {
         "type": "lobby_update",
         "status": game.status,
         "players": [
@@ -98,15 +135,42 @@ async def _broadcast_lobby(game: Game) -> None:
                 "seat_order": p.seat_order,
                 "connected": p.connected,
                 "wind": p.wind,
+                "total_score": p.total_score,
             }
             for p in game.players
         ],
+        "current_round": rnd and {
+            "id": str(rnd.id),
+            "round_number": rnd.round_number,
+            "round_wind": rnd.round_wind,
+            "conflict": rnd.conflict(),
+            "submissions": {
+                str(s.game_player_id): {"draw": s.draw, "score_input": s.score_input}
+                for s in rnd.scores
+            },
+        },
     }
-    for ws in list(connections.get(game.lobby_code, {}).values()):
-        try:
-            await ws.send_json(msg)
-        except Exception:
-            pass  # död socket, dess egen handler städar upp
+
+
+def _round_complete_msg(game: Game, rnd: Round) -> dict:
+    """Skickas efter att ronden avslutats, så spelarnas vindar är redan nästa ronds."""
+    return {
+        "type": "round_complete",
+        "round_id": str(rnd.id),
+        "round_number": rnd.round_number,
+        "winner_id": rnd.winner_id and str(rnd.winner_id),
+        "payments": {
+            str(s.game_player_id): {
+                "base_points": s.base_points,
+                "doublings": s.doublings,
+                "final_points": s.final_points,
+                "payment_delta": s.payment_delta,
+            }
+            for s in rnd.scores
+        },
+        "new_totals": {str(p.id): p.total_score for p in game.players},
+        "next_round_winds": {str(p.id): p.wind for p in game.players},
+    }
 
 
 @app.websocket("/ws")
@@ -140,36 +204,58 @@ async def lobby_socket(ws: WebSocket) -> None:
     except GameError as e:
         return await _error(ws, e.code, str(e))
 
-    lobby = connections.setdefault(game.lobby_code, {})
-    old = lobby.get(player.id)
-    lobby[player.id] = ws
-    player.connected = True
-    if old is not None:  # samma spelare från ny flik/sidladdning ersätter den gamla
-        try:
-            await old.close()
-        except RuntimeError:
-            pass  # redan stängd
-    await _broadcast_lobby(game)
+    lock = locks.setdefault(game.lobby_code, asyncio.Lock())
+    async with lock:
+        lobby = connections.setdefault(game.lobby_code, {})
+        old = lobby.get(player.id)
+        lobby[player.id] = ws
+        player.connected = True
+        if old is not None:  # samma spelare från ny flik/sidladdning ersätter den gamla
+            await _close(old)
+        await _broadcast(game, _lobby_msg(game))
 
     try:
         while True:
             try:
-                msg = ChooseWind.model_validate(await ws.receive_json())
-            # Skräp ignoreras: ogiltig JSON/ValidationError (ValueError),
+                raw = await ws.receive_json()
+            # Skräp ignoreras: ogiltig JSON (ValueError),
             # binär ram (KeyError/TypeError i Starlettes receive_json).
             except (ValueError, KeyError, TypeError):
                 continue
-            store.choose_wind(game, player, msg.wind)
-            # Även vid nekat val, så att den som förlorade en kapplöpning synkas om.
-            await _broadcast_lobby(game)
+            kind = raw.get("type") if isinstance(raw, dict) else None
+            if kind not in ("choose_wind", "submit_score"):
+                continue  # okänd typ ignoreras
+            async with lock:
+                if kind == "choose_wind":
+                    try:
+                        msg = ChooseWind.model_validate(raw)
+                    except ValidationError:
+                        continue
+                    store.choose_wind(game, player, msg.wind)
+                    # Även vid nekat val, så att den som förlorade en kapplöpning synkas om.
+                    await _broadcast(game, _lobby_msg(game))
+                    continue
+                try:
+                    msg = SubmitScore.model_validate(raw)
+                    rnd = store.submit_score(game, player, msg.round_id, msg.score_input, msg.draw)
+                except ValidationError:
+                    await _send(ws, _error_msg("invalid_message", "Ogiltigt submit_score"))
+                    continue
+                except GameError as e:  # bara till avsändaren, socketen lever vidare
+                    await _send(ws, _error_msg(e.code, str(e)))
+                    continue
+                if rnd is not None:  # round_complete före nästa ronds lobby_update
+                    await _broadcast(game, _round_complete_msg(game, rnd))
+                await _broadcast(game, _lobby_msg(game))
     except (WebSocketDisconnect, RuntimeError):
         pass
-    if lobby.get(player.id) is ws:
-        del lobby[player.id]
-        player.connected = False
-        if not lobby:
-            connections.pop(game.lobby_code, None)
-        await _broadcast_lobby(game)
+    async with lock:
+        if lobby.get(player.id) is ws:
+            del lobby[player.id]
+            player.connected = False
+            if not lobby:
+                connections.pop(game.lobby_code, None)
+            await _broadcast(game, _lobby_msg(game))
 
 
 class SPAStaticFiles(StaticFiles):

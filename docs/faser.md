@@ -36,7 +36,7 @@ Ingen databas: spelstate hålls i minnet (se CLAUDE.md). Ingen historik eller st
 - [ ] **4.3** WebSocket: live-uppdateringar till alla spelare
 - [ ] **4.4** UI: Avsluta spel-knapp + slutresultat
 - [ ] **4.5** Backend: Städa bort inaktiva och avslutade spel ur minnet efter en tid
-  - Kom ihåg: stäng öppna sockets i `connections` för spelet som städas bort.
+  - Kom ihåg: stäng öppna sockets i `connections` och släpp låset i `locks` för spelet som städas bort.
 
 ## Fas 5 — Deployment (en tjänst på Railway, görs före Fas 3)
 - [x] **5.1** Backend: API under `/api`, FastAPI serverar byggd frontend med fallback till `index.html`
