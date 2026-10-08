@@ -307,3 +307,42 @@ def test_two_direct_mahjong_conflict():
     for p, mahjong in zip((a, b, c, d), (True, True, False, False)):
         _direct(store, game, p, 20, mahjong)
     assert game.rounds[0].conflict() == "multiple_mahjong"
+
+
+def _assert_history(game, completed):
+    h = game.score_history()
+    assert list(h) == [str(p.id) for p in game.players]
+    assert all(len(s) == completed + 1 and s[0] == 0 for s in h.values())
+    assert all(sum(s[i] for s in h.values()) == 0 for i in range(completed + 1))
+    assert all(h[str(p.id)][-1] == p.total_score for p in game.players)
+    return h
+
+
+def test_score_history_per_round():
+    store = GameStore()
+    game, a, b, c, d = _active_game(store)
+    assert _assert_history(game, 0) == {str(p.id): [0] for p in game.players}
+
+    # Rond 1 via vyerna: samma tal som i test_full_rounds_settle_rotate_and_sum_to_zero.
+    _submit_all(store, game, [SET_2, {}, SET_4, CHOWS_MAHJONG])
+    h = _assert_history(game, 1)
+    assert [h[str(p.id)] for p in game.players] == [[0, -60], [0, -38], [0, -22], [0, 120]]
+
+    # Rond 2 oavgjord: samma värde igen.
+    _submit_all(store, game, [{}, {}, {}, {}], draw=True)
+    h = _assert_history(game, 2)
+    assert all(s[2] == s[1] for s in h.values())
+
+    # Rond 3 blandad: vinnaren (A) och C anger slutpoängen direkt.
+    _direct(store, game, a, 48, mahjong=True)
+    store.submit_score(game, b, game.rounds[-1].id, SET_4, False)
+    _direct(store, game, c, 8)
+    assert store.submit_score(game, d, game.rounds[-1].id, SET_2, False) is not None
+    h = _assert_history(game, 3)
+    assert h[str(a.id)][3] > h[str(a.id)][2]
+
+    # Rond 4 pågår: tre av fyra har lämnat in, en direkt. Historiken är oförändrad.
+    _direct(store, game, a, 8)
+    store.submit_score(game, b, game.rounds[-1].id, CHOWS_MAHJONG, False)
+    store.submit_score(game, c, game.rounds[-1].id, SET_2, False)
+    assert _assert_history(game, 3) == h

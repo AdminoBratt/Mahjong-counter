@@ -171,6 +171,7 @@ def _lobby_msg(game: Game) -> dict:
             },
         },
         "last_round": _round_result(game, game.rounds[-2]) if len(game.rounds) > 1 else None,
+        "score_history": game.score_history(),
     }
 
 
