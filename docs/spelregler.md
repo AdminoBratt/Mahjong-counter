@@ -143,3 +143,11 @@ Användaren anger drak- och vind-3tal. Blommor och årstider visas utifrån Vy 1
 29. "Hela handen från en serie" kan inte kombineras med drak- eller vind-3tal. Kontrollen täcker bara de drak- och vind-3tal som angetts i Vy 2. Ett 3tal i 1, 9, vind, drake som inte angetts där går inte att skilja från 1or/9or i serien.
 30. "Hela handen från en serie" och "Enbart 1or/9or/drakar/vindar" utesluter varandra. En serie har bara två ytterbrickor, så fyra grupper kan inte alla vara 1or/9or i samma serie.
 31. I Vy 3 är en ruta som inte är tillåten avstängd och har en synlig förklaring under sig, även när det är den andra rutan som spärrar den. En ruta som redan är ikryssad men inte längre tillåten (till exempel efter en ändring i Vy 1 eller Vy 2) förblir klickbar så att den kan kryssas ur. Felet visas under rutan och Nästa är spärrat tills det är rättat.
+32. Klienten räknar inga poäng. Uträkningen av en inlämning (`base_points`, `doublings`, `final_points`) kommer från servern i `submissions` och visas som den är. Före inskick visas bara valen i klartext.
+33. "Skicka in" är avstängd och visar "Skickar…" tills servern svarat, antingen med inlämningen i `lobby_update` eller med ett fel. Ingen extra bekräftelsedialog: bekräftelseskärmen är bekräftelsen och inlämningen kan ändras tills ronden är avslutad.
+34. Efter inskick visas väntläget med den egna uträkningen och vilka som lämnat in. Andras poäng och val visas inte förrän ronden är avslutad.
+35. "Ändra min inmatning" börjar i Vy 1, ifylld från serverns version. Den förra inlämningen gäller tills en ny skickas. Avslutas ronden under tiden visas "Rond N avslutades medan du ändrade. Din förra inlämning gällde."
+36. Vid en konflikt visas en förklaring och knappen "Ändra min inmatning". Bara där visas vilka som angett Mahjong eller Oavgjort.
+37. Poäng och totaler visas med tecken (+/−). Noll visas utan tecken.
+38. Spelvyns huvud visar ställningen: varje spelares namn, vind och total, direkt från `players` i `lobby_update`.
+39. Nästa rond startas med en knapp "Nästa rond" hos varje spelare, inte automatiskt (3.8b).

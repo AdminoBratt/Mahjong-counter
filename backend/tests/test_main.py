@@ -282,6 +282,7 @@ def test_ws_full_round():
             _submit(ws, rnd, LOSER)
             cur = _all(socks, "lobby_update")["current_round"]
             assert set(cur["submissions"]) == set(ids[: i + 1]) and cur["conflict"] is None
+            assert cur["submissions"][ids[i]]["final_points"] == 2
         _submit(socks[3], rnd, WINNER)
 
         done = _all(socks, "round_complete")  # före nya lobby_update
@@ -330,7 +331,10 @@ def test_ws_rejoin_gets_own_submission():
         b = stack.enter_context(client.websocket_connect("/ws"))
         _join(b, code, "b")
         mine = _lobby(b)[1]["current_round"]["submissions"][ids[1]]
-        assert mine == {"draw": True, "score_input": LOSER}
+        # Uträkningen följer med, så klienten kan visa den utan att räkna själv.
+        assert mine == {
+            "draw": True, "score_input": LOSER, "base_points": 2, "doublings": 0, "final_points": 2,
+        }
 
 
 def test_ws_game_errors_only_to_sender():
