@@ -4,6 +4,10 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Literal
 
+from pydantic import ValidationError
+
+from app.scoring import Wind, rotate_winds, score, settle
+
 # Utan 0/O/1/I så att koden går att skriva av utan förväxling.
 CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 
@@ -13,7 +17,6 @@ def _now() -> datetime:
 
 
 MAX_PLAYERS = 4
-Wind = Literal["east", "south", "west", "north"]
 
 
 @dataclass
@@ -22,7 +25,45 @@ class GamePlayer:
     seat_order: int  # 1-4, i den ordning spelarna gick med
     id: uuid.UUID = field(default_factory=uuid.uuid4)
     connected: bool = False  # har en öppen WebSocket just nu
-    wind: Wind | None = None  # startvind, None tills vald
+    wind: Wind | None = None  # aktuell vind, None tills startvinden är vald
+    total_score: int = 0
+
+
+@dataclass
+class RoundScore:
+    game_player_id: uuid.UUID
+    base_points: int
+    doublings: int
+    final_points: int
+    did_mahjong: bool
+    draw: bool  # spelaren har valt oavgjort
+    score_input: dict  # rådata från spelaren
+    payment_delta: int = 0  # sätts när ronden avslutas
+
+
+@dataclass
+class Round:
+    round_number: int
+    id: uuid.UUID = field(default_factory=uuid.uuid4)
+    # Rondens vind roterar inte ännu, se "Känd teknisk skuld" i CLAUDE.md.
+    round_wind: Wind = "east"
+    is_draw: bool = False
+    winner_id: uuid.UUID | None = None
+    scores: list[RoundScore] = field(default_factory=list)
+
+    def conflict(self) -> str | None:
+        """Varför ronden inte kan avslutas trots att alla fyra lämnat in, annars None."""
+        if len(self.scores) < MAX_PLAYERS:
+            return None
+        winners = sum(s.did_mahjong for s in self.scores)
+        draws = sum(s.draw for s in self.scores)
+        if draws == MAX_PLAYERS or (winners == 1 and not draws):
+            return None
+        if winners > 1:
+            return "multiple_mahjong"
+        if draws:
+            return "draw_disagreement"
+        return "no_mahjong"
 
 
 @dataclass
@@ -33,9 +74,10 @@ class Game:
     created_at: datetime = field(default_factory=_now)
     last_activity: datetime = field(default_factory=_now)
     players: list[GamePlayer] = field(default_factory=list)
+    rounds: list[Round] = field(default_factory=list)  # sista = aktuell rond
 
 
-class JoinError(ValueError):
+class GameError(ValueError):
     def __init__(self, code: str, message: str) -> None:
         super().__init__(message)
         self.code = code
@@ -61,7 +103,7 @@ class GameStore:
     def join(self, lobby_code: str, nickname: str) -> tuple[Game, GamePlayer, bool]:
         """Returnerar (spel, spelare, rejoined). Samma smeknamn = återanslutning.
 
-        KeyError om koden är okänd, JoinError om en ny spelare inte får plats.
+        KeyError om koden är okänd, GameError om en ny spelare inte får plats.
         Synkron av samma skäl som create(): ingen kapplöpning om sista platsen.
         """
         game = self._games[lobby_code.upper()]
@@ -70,9 +112,9 @@ class GameStore:
             if p.nickname.casefold() == nickname.casefold():
                 return game, p, True
         if game.status != "waiting":
-            raise JoinError("game_started", "Spelet har redan startat")
+            raise GameError("game_started", "Spelet har redan startat")
         if len(game.players) >= MAX_PLAYERS:
-            raise JoinError("game_full", "Spelet är fullt")
+            raise GameError("game_full", "Spelet är fullt")
         player = GamePlayer(nickname=nickname, seat_order=len(game.players) + 1)
         game.players.append(player)
         return game, player, False
@@ -91,7 +133,52 @@ class GameStore:
         game.last_activity = _now()
         if all(p.wind for p in game.players):
             game.status = "active"
+            game.rounds.append(Round(round_number=1))
         return True
+
+    def submit_score(
+        self, game: Game, player: GamePlayer, round_id: uuid.UUID, raw: dict, draw: bool
+    ) -> Round | None:
+        """Sparar spelarens inlämning; en ny ersätter den förra. Returnerar ronden om den avslutades.
+
+        GameError vid fel. Synkron av samma skäl som join(): ronden avslutas bara en gång.
+        """
+        if game.status != "active":
+            raise GameError("not_active", "Spelet är inte igång")
+        rnd = game.rounds[-1]
+        if round_id != rnd.id:
+            raise GameError("wrong_round", "Ronden är redan avslutad eller okänd")
+        try:
+            s = score(raw, player.wind, rnd.round_wind)
+        except ValueError as e:
+            msg = "Ogiltig poänginmatning" if isinstance(e, ValidationError) else str(e)
+            raise GameError("invalid_score", msg) from e
+        did_mahjong = raw.get("mahjong") is not None  # raw är en giltig dict efter score()
+        if draw and did_mahjong:
+            raise GameError("invalid_score", "Oavgjort och Mahjong samtidigt")
+
+        rnd.scores = [x for x in rnd.scores if x.game_player_id != player.id]
+        rnd.scores.append(
+            RoundScore(player.id, s.base_points, s.doublings, s.final_points, did_mahjong, draw, raw)
+        )
+        game.last_activity = _now()
+        if len(rnd.scores) < MAX_PLAYERS or rnd.conflict():
+            return None
+
+        win = next((x for x in rnd.scores if x.did_mahjong), None)  # None = alla valde oavgjort
+        winner = str(win.game_player_id) if win else None
+        east = next(str(p.id) for p in game.players if p.wind == "east")
+        deltas = settle({str(x.game_player_id): x.final_points for x in rnd.scores}, winner, east)
+        winds = rotate_winds({str(p.id): p.wind for p in game.players}, winner)
+        for x in rnd.scores:
+            x.payment_delta = deltas[str(x.game_player_id)]
+        for p in game.players:
+            p.total_score += deltas[str(p.id)]
+            p.wind = winds[str(p.id)]
+        rnd.is_draw = win is None
+        rnd.winner_id = win.game_player_id if win else None
+        game.rounds.append(Round(round_number=rnd.round_number + 1))
+        return rnd
 
     def add(self, game: Game) -> None:
         self._games[game.lobby_code] = game

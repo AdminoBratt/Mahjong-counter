@@ -14,11 +14,10 @@ lobby_code    str (6 tecken, unik, t.ex. "ABC123")
 status        'waiting' | 'active' | 'finished'
 created_at    datetime
 last_activity datetime   # används för att städa inaktiva spel
-current_round int = 1
-round_wind    'east' | 'south' | 'west' | 'north' = 'east'
 players       list[GamePlayer]
-rounds        list[Round]
+rounds        list[Round]  # sista = aktuell rond, skapas när status blir 'active'
 ```
+Rondnummer och rondens vind läses från `rounds[-1]`.
 
 ## GamePlayer
 `Player` och `GamePlayer` är sammanslagna: en spelare finns bara i ett spel.
@@ -26,8 +25,8 @@ rounds        list[Round]
 id          UUID
 nickname    str  # unik per spel, jämförs med casefold(); samma namn = återanslutning
 seat_order  int  # 1-4, i den ordning spelarna gick med
-wind        'east' | 'south' | 'west' | 'north' | None  # startvind, None tills vald (2.6)
-total_score int = 0                              # läggs till i fas 3
+wind        'east' | 'south' | 'west' | 'north' | None  # aktuell vind, None tills startvinden är vald
+total_score int = 0
 connected   bool                                 # för återanslutning, läggs till i 2.3
 ```
 
@@ -37,7 +36,7 @@ id           UUID
 round_number int
 is_draw      bool = False   # oavgjort
 winner_id    UUID | None    # GamePlayer.id
-round_wind   'east' | 'south' | 'west' | 'north'
+round_wind   'east' | 'south' | 'west' | 'north' = 'east'  # fast tills vidare, se teknisk skuld
 scores       list[RoundScore]
 ```
 
@@ -49,5 +48,6 @@ doublings       int
 final_points    int   # base_points × 2^doublings
 payment_delta   int   # netto efter betalningar (kan vara negativt)
 did_mahjong     bool = False
+draw            bool = False  # spelaren har valt oavgjort
 score_input     dict  # rådata från spelarens inmatning
 ```

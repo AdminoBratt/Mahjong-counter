@@ -11,7 +11,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, StringConstraints, ValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from app.store import Game, GameStore, JoinError, Wind
+from app.store import Game, GameError, GameStore, Wind
 
 app = FastAPI(title="Mahjong Score Tracker")
 store = GameStore()
@@ -137,7 +137,7 @@ async def lobby_socket(ws: WebSocket) -> None:
         game, player, _ = store.join(msg.lobby_code, msg.nickname)
     except KeyError:
         return await _error(ws, "unknown_lobby", "Okänd lobbykod")
-    except JoinError as e:
+    except GameError as e:
         return await _error(ws, e.code, str(e))
 
     lobby = connections.setdefault(game.lobby_code, {})
