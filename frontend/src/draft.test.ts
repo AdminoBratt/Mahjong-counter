@@ -1,6 +1,16 @@
 import { describe, expect, it } from 'vitest'
 
-import { bonusTiles, emptyDraft, fromSubmission, groupsError, honorsError, toSubmission, type Draft } from './draft.ts'
+import {
+  bonusTiles,
+  emptyDraft,
+  fromSubmission,
+  groupsError,
+  honorsError,
+  mahjongBlocked,
+  mahjongError,
+  toSubmission,
+  type Draft,
+} from './draft.ts'
 
 const hand: Draft = {
   ...emptyDraft(),
@@ -96,6 +106,50 @@ describe('honorsError', () => {
     const both = { ...one, round_wind_sets: 1, own_wind_sets: 1 }
     expect(honorsError(both, true)).toBeNull()
     expect(honorsError({ ...both, dragon_sets: 1 }, true)).toMatch('angett 2')
+  })
+})
+
+describe('mahjongBlocked', () => {
+  const major = { size: 3 as const, concealed: false, major: true }
+  const majorsOnly: Draft = { ...emptyDraft(), outcome: 'mahjong', sets: [major, major, major, major] }
+  const withMahjong = (d: Draft, patch: Partial<Draft['mahjong']>) => ({ ...d, mahjong: { ...d.mahjong, ...patch } })
+
+  it('allows only_majors only when all four groups are major sets', () => {
+    expect(mahjongBlocked(majorsOnly).only_majors).toBeNull()
+    expect(mahjongBlocked({ ...majorsOnly, sets: [major, major, major], chows: 1 }).only_majors).toMatch('alla fyra')
+    expect(mahjongBlocked({ ...majorsOnly, sets: [major, major, major, { ...major, major: false }] }).only_majors).toMatch(
+      'alla fyra',
+    )
+  })
+
+  it('needs two dragon sets and a scoring pair for two_dragons_pair', () => {
+    const dragons = { ...majorsOnly, dragon_sets: 2, scoring_pair: true }
+    expect(mahjongBlocked(dragons).two_dragons_pair).toBeNull()
+    expect(mahjongBlocked({ ...dragons, dragon_sets: 1 }).two_dragons_pair).toMatch('minst 2')
+    expect(mahjongBlocked({ ...dragons, scoring_pair: false }).two_dragons_pair).toMatch('par')
+  })
+
+  it('blocks one_suit when dragon or wind sets are given', () => {
+    expect(mahjongBlocked(hand).one_suit).toBeNull()
+    expect(mahjongBlocked({ ...majorsOnly, dragon_sets: 1 }).one_suit).toMatch('drak- eller vind')
+    expect(mahjongBlocked({ ...majorsOnly, round_wind_sets: 1 }).one_suit).toMatch('drak- eller vind')
+    expect(mahjongBlocked({ ...majorsOnly, own_wind_sets: 1 }).one_suit).toMatch('drak- eller vind')
+  })
+
+  it('makes one_suit and only_majors exclude each other in both directions', () => {
+    expect(mahjongBlocked(withMahjong(majorsOnly, { one_suit: true })).only_majors).toMatch('En serie')
+    expect(mahjongBlocked(withMahjong(majorsOnly, { only_majors: true })).one_suit).toMatch('Enbart')
+  })
+})
+
+describe('mahjongError', () => {
+  it('ignores blocked boxes that are not ticked', () => {
+    expect(mahjongError(hand)).toBeNull()
+  })
+
+  it('reports a ticked box that is no longer allowed', () => {
+    expect(mahjongError({ ...hand, mahjong: { ...hand.mahjong, only_majors: true } })).toMatch('alla fyra')
+    expect(mahjongError({ ...hand, mahjong: { ...hand.mahjong, two_dragons_pair: true } })).toMatch('minst 2')
   })
 })
 
