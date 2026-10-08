@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { emptyDraft, fromSubmission, groupsError, toSubmission, type Draft } from './draft.ts'
+import { bonusTiles, emptyDraft, fromSubmission, groupsError, honorsError, toSubmission, type Draft } from './draft.ts'
 
 const hand: Draft = {
   ...emptyDraft(),
@@ -74,5 +74,49 @@ describe('groupsError', () => {
 
   it('ignores group count when not mahjong', () => {
     expect(groupsError({ ...hand, outcome: 'other', chows: 0 })).toBeNull()
+  })
+})
+
+describe('honorsError', () => {
+  const major = { size: 3 as const, concealed: false, major: true }
+  const one = { ...emptyDraft(), outcome: 'other' as const, sets: [major] }
+
+  it('allows as many dragon/wind sets as major sets', () => {
+    expect(honorsError({ ...one, dragon_sets: 1 }, false)).toBeNull()
+    expect(honorsError({ ...one, sets: [major, major], dragon_sets: 1, own_wind_sets: 1 }, false)).toBeNull()
+  })
+
+  it('rejects more dragon/wind sets than major sets', () => {
+    expect(honorsError({ ...one, dragon_sets: 1, own_wind_sets: 1 }, false)).toMatch('bara 1')
+    expect(honorsError({ ...one, round_wind_sets: 1, own_wind_sets: 1 }, false)).toMatch('angett 2')
+    expect(honorsError({ ...emptyDraft(), dragon_sets: 1 }, false)).toMatch('bara 0')
+  })
+
+  it('counts a set in round and own wind once when they are the same wind', () => {
+    const both = { ...one, round_wind_sets: 1, own_wind_sets: 1 }
+    expect(honorsError(both, true)).toBeNull()
+    expect(honorsError({ ...both, dragon_sets: 1 }, true)).toMatch('angett 2')
+  })
+})
+
+describe('bonusTiles', () => {
+  it('finds own flower and season by wind number', () => {
+    const d = { ...emptyDraft(), flowers: [2, 3], seasons: [1] }
+    expect(bonusTiles(d, 'south')).toMatchObject({ own: 2, ownFlower: true, ownSeason: false })
+    expect(bonusTiles(d, 'east')).toMatchObject({ own: 1, ownFlower: false, ownSeason: true })
+  })
+
+  it('needs all four of a kind, and all eight for both', () => {
+    const four = [1, 2, 3, 4]
+    expect(bonusTiles({ ...emptyDraft(), flowers: four, seasons: [1, 2, 3] }, 'north')).toMatchObject({
+      allFlowers: true,
+      allSeasons: false,
+      allEight: false,
+    })
+    expect(bonusTiles({ ...emptyDraft(), flowers: four, seasons: four }, 'north')).toMatchObject({
+      allFlowers: true,
+      allSeasons: true,
+      allEight: true,
+    })
   })
 })

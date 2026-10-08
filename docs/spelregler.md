@@ -97,7 +97,7 @@ Stackas multiplikativt: Xp × 2^n
   - Om ja: checkboxar för varje Mahjong-bonus
 
 ### Vy 2 — Allmänna dubblingar (alla spelare)
-Systemet föreslår dubblingar automatiskt utifrån Vy 1. Användaren bekräftar/justerar:
+Användaren anger drak- och vind-3tal. Blommor och årstider visas utifrån Vy 1 (se Beslut 28):
 - 3tal/4tal i drake (vilken?)
 - 3tal/4tal i rondens vind
 - 3tal/4tal i egen vind
@@ -139,3 +139,4 @@ Systemet föreslår dubblingar automatiskt utifrån Vy 1. Användaren bekräftar
 25. Ronden avslutas när alla fyra har lämnat in och antingen exakt en har Mahjong och ingen valt oavgjort, eller alla fyra valt oavgjort.
 26. Alla andra kombinationer avslutar inte ronden. Läget visas som en konflikt (`no_mahjong`, `multiple_mahjong`, `draw_disagreement`) och löses genom att någon skickar in igen.
 27. En avslutad rond kan inte ångras eller ändras (se "Känd teknisk skuld" i CLAUDE.md).
+28. Vy 2 föreslår inga drak- eller vind-3tal, eftersom Vy 1 bara anger om ett 3tal är 1, 9, vind, drake och inte vilken bricka. Antalet sådana 3tal är taket för drak- och vind-3tal tillsammans (0 = fälten avstängda). Är egen vind också rondens vind finns en kryssruta som sätter både `round_wind_sets` och `own_wind_sets`. Egen blomma/årstid och alla 4/alla 8 visas skrivskyddat som ja/nej och ändras i Vy 1. Inga multiplikatorer visas förrän backend räknat dem.
