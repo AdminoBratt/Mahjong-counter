@@ -28,6 +28,9 @@ SERVER → CLIENT (broadcast till alla i lobby):
                     #       # direkt slutpoäng: score_input, base_points och doublings är null
                     # last_round: null tills första ronden avslutats, annars senast avslutade ronden
                     #   med samma fält som round_complete (utan type)
+                    # score_history: { <player_id>: [int, ...] }   # total efter varje avslutad rond
+                    #   index = rondnummer, [0] = start (0). Oavgjord rond = samma värde som förra.
+                    #   Sista värdet = spelarens total_score. En pågående rond syns inte.
   round_complete    { round_id, round_number, round_wind, winner_id,   # winner_id null = oavgjort
                       payments: { <player_id>: { wind,   # spelarens vind i ronden
                                                  base_points, doublings, final_points, payment_delta } },
@@ -61,6 +64,8 @@ Efter `join_lobby` gäller:
   Kan ronden inte avslutas trots fyra inlämningar visas orsaken i `current_round.conflict`.
 - `last_round` byggs av samma funktion som `round_complete`, så resultatet är identiskt live och efter
   omladdning. Klienten läser bara `last_round`; `round_complete` skickas kvar för protokollet.
+- `score_history` räknas i backend ur rondresultaten, med samma kod live och efter omladdning.
+  Klienten ritar bara talen. Efter 30 ronder är fältet ungefär 1 KB.
 - Ogiltiga meddelanden (inte JSON, inte ett objekt, okänd `type`, binär ram, `choose_wind` med
   ogiltig vind) ignoreras. Socketen stängs inte och inget svar skickas.
 

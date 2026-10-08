@@ -43,7 +43,8 @@ Om spelreglerna är oklara: fråga mig, gissa inte.
 - Kör bara EN backend-instans, annars hamnar spelare i olika minnen.
 - Spelare ska kunna återansluta efter sidladdning med lobbykod + smeknamn.
 - Städa bort inaktiva spel efter några timmar så att minnet inte växer.
-- Ingen historik eller statistik sparas.
+- Ingen historik eller statistik sparas mellan spel. Poänghistoriken inom ett pågående spel lagras inte
+  separat utan härleds ur rondresultaten.
 - Håll lagringen bakom ett litet gränssnitt (`GameStore`) så att den kan bytas ut senare om det behövs.
 
 ## Viktiga regler

@@ -78,6 +78,19 @@ class Game:
     players: list[GamePlayer] = field(default_factory=list)
     rounds: list[Round] = field(default_factory=list)  # sista = aktuell rond
 
+    def score_history(self) -> dict[str, list[int]]:
+        """Total per spelare efter varje avslutad rond. Index = rondnummer, [0] = start (Beslut 55)."""
+        totals = {p.id: 0 for p in self.players}
+        history = {str(p.id): [0] for p in self.players}
+        for rnd in self.rounds:
+            if rnd.winner_id is None and not rnd.is_draw:
+                continue  # pågående rond
+            for s in rnd.scores:
+                totals[s.game_player_id] += s.payment_delta
+            for p in self.players:
+                history[str(p.id)].append(totals[p.id])
+        return history
+
 
 class GameError(ValueError):
     def __init__(self, code: str, message: str) -> None:

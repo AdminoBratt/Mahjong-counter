@@ -1,7 +1,8 @@
 # Faser och status
 
 Följ ordningen. Ett steg i taget. Bocka av `[x]` när steget är klart och verifierat.
-Ingen databas: spelstate hålls i minnet (se CLAUDE.md). Ingen historik eller statistik.
+Ingen databas: spelstate hålls i minnet (se CLAUDE.md). Ingen historik eller statistik sparas mellan spel.
+Poänghistoriken inom ett pågående spel härleds ur rondresultaten (Beslut 55).
 
 ## Fas 1 — Fundament
 - [x] **1.1** FastAPI-skelett (struktur, health-endpoint, CORS, `GameStore` i minnet, pytest)
@@ -42,7 +43,12 @@ Ingen databas: spelstate hålls i minnet (se CLAUDE.md). Ingen historik eller st
 
 ## Fas 4 — Spelvy (realtid)
 - [x] **4.1** UI: Aktiv spelvy (totalpoäng per spelare, aktuell vind, rondnummer)
-- [ ] **4.2** UI: Poängkurva/graf (Chart.js eller Recharts)
+- [ ] **4.2** UI: Poängkurva/graf (ren SVG)
+  - [x] **4.2a** Backend: `score_history` i `lobby_update` (total per spelare efter varje avslutad rond) + tester
+  - [ ] **4.2b** Frontend: kurvan i ren SVG och tabellen bakom "Visa som tabell"
+    - Kom ihåg: alla linjer i `--text` (min tjockare), skilda med linjemönster, markörer och namnetiketter.
+      Aldrig `--accent`, `--positive` eller `--negative`. Under innehållet i en `<details>`, stängd under
+      inmatning och öppen i resultat- och väntläget. Ingen kurva före första avslutade ronden.
 - [x] **4.3** WebSocket: live-uppdateringar till alla spelare
 - [ ] **4.4** UI: Avsluta spel-knapp + slutresultat
 - [ ] **4.5** Backend: Städa bort inaktiva och avslutade spel ur minnet efter en tid

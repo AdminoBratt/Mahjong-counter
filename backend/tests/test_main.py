@@ -323,6 +323,7 @@ def test_ws_last_round_live_equals_reload():
     with ExitStack() as stack:
         code, socks, ids, msg = _start(client, stack)
         assert msg["last_round"] is None
+        assert msg["score_history"] == {i: [0] for i in ids}
 
         # Rond 1: D (nord) vinner 30p. A (öst) 4p, B 2p, C 8p, så förlorarna gör upp och Öst dubblas.
         done, nxt = _play(socks, msg["current_round"], (LOSER_4, LOSER, LOSER_8, WINNER))
@@ -331,14 +332,18 @@ def test_ws_last_round_live_equals_reload():
         assert [done["payments"][i]["wind"] for i in ids] == ["east", "south", "west", "north"]
         live = {k: v for k, v in done.items() if k != "type"}
         assert nxt["last_round"] == live
+        history = nxt["score_history"]
+        assert history == dict(zip(ids, [[0, -64], [0, -40], [0, -16], [0, 120]]))
 
-        # Omladdning: samma resultat.
+        # Omladdning: samma resultat och samma historik.
         socks[1].close()
         _all([socks[0], socks[2], socks[3]], "lobby_update")
         b = stack.enter_context(client.websocket_connect("/ws"))
         _join(b, code, "b")
         socks[1] = b
-        assert _all(socks, "lobby_update")["last_round"] == live
+        reloaded = _all(socks, "lobby_update")
+        assert reloaded["last_round"] == live
+        assert reloaded["score_history"] == history
 
         # Rond 2: B är nu Öst och vinner. Vindarna står kvar, last_round byter till rond 2.
         done2, nxt2 = _play(socks, nxt["current_round"], (LOSER, WINNER, LOSER_4, LOSER_8))
@@ -348,6 +353,10 @@ def test_ws_last_round_live_equals_reload():
         assert nxt2["last_round"] == {k: v for k, v in done2.items() if k != "type"}
         assert nxt2["last_round"]["new_totals"] == dict(zip(ids, [-132, 140, -78, 70]))
         assert nxt2["last_round"]["next_round_winds"] == dict(zip(ids, ["north", "east", "south", "west"]))
+        h2 = nxt2["score_history"]
+        assert {i: s[-1] for i, s in h2.items()} == nxt2["last_round"]["new_totals"]
+        assert all(len(s) == 3 and s[:2] == history[i] for i, s in h2.items())
+        assert all(sum(s[r] for s in h2.values()) == 0 for r in range(3))
 
 
 def test_ws_conflict_resolved():
@@ -476,7 +485,8 @@ def test_ws_mixed_round_live_equals_reload():
         _submit(socks[1], rnd, SOUTH_8)
         _all(socks, "lobby_update")
         _direct(socks[2], rnd, 32)
-        _all(socks, "lobby_update")
+        # Tre av fyra inne, en direkt: ronden pågår och historiken är oförändrad.
+        assert _all(socks, "lobby_update")["score_history"] == {i: [0] for i in ids}
         _direct(socks[3], rnd, 48, mahjong=True)
 
         done = _all(socks, "round_complete")
@@ -491,14 +501,18 @@ def test_ws_mixed_round_live_equals_reload():
         assert done["next_round_winds"] == dict(zip(ids, ["north", "east", "south", "west"]))
         live = {k: v for k, v in done.items() if k != "type"}
         assert nxt["last_round"] == live
+        history = dict(zip(ids, [[0, -80], [0, -104], [0, -8], [0, 192]]))
+        assert nxt["score_history"] == history
 
-        # Omladdning: samma resultat.
+        # Omladdning: samma resultat och samma historik.
         socks[3].close()
         _all(socks[:3], "lobby_update")
         d = stack.enter_context(client.websocket_connect("/ws"))
         _join(d, code, "D")
         socks[3] = d
-        assert _all(socks, "lobby_update")["last_round"] == live
+        reloaded = _all(socks, "lobby_update")
+        assert reloaded["last_round"] == live
+        assert reloaded["score_history"] == history
 
 
 def test_send_timeout_closes_socket(monkeypatch):

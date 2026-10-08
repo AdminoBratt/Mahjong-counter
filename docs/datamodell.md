@@ -39,6 +39,8 @@ winner_id    UUID | None    # GamePlayer.id
 round_wind   'east' | 'south' | 'west' | 'north' = 'east'  # fast tills vidare, se teknisk skuld
 scores       list[RoundScore]
 ```
+Poänghistoriken (`score_history` i `lobby_update`) lagras inte. `Game.score_history()` härleder den ur
+`payment_delta` i avslutade ronder (`winner_id` satt eller `is_draw`).
 
 ## RoundScore
 ```
