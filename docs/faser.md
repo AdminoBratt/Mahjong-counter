@@ -74,3 +74,7 @@ Poänghistoriken inom ett pågående spel härleds ur rondresultaten (Beslut 55)
 - [x] **5.4** Dockerfile i två steg + `.dockerignore`, verifierat med `docker build` / `docker run`
 - [x] **5.5** Railway: deploy från GitHub, domän, healthcheck `/api/health`, en replika, ingen sömn
   - Kom ihåg: varje merge till `main` startar om tjänsten och raderar pågående spel.
+
+## Fas 6 — Mobile first
+- [x] **6.1** UI: Mobile first (basstilar för telefon, rondresultatet som ett kort per spelare under 720px,
+  poängkurvan med smal viewBox under 600px, fullbreddsknappar, `theme-color`)
