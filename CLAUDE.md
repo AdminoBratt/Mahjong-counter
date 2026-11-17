@@ -95,20 +95,24 @@ Läs `docs/datamodell.md` innan du rör spelmodellerna eller `GameStore`.
 
 ## Design
 Följ alltid dessa val i alla UI-steg.
-- Stil: Minimalism/Swiss + financial-dashboard-mönster, tema "jadefilt + röd drake". Ett enda mörkt tema, inget ljust läge.
+- Stil: glasmorfism, mörkt. Bläckblått, havreelfenben och 10% bärnstensorange. Ett enda mörkt tema, inget ljust läge.
+  Glasytor (`.card`, ställningen, dialogen): genomskinligt elfenben + `backdrop-filter`, hårfin kant, svag överkantsglans,
+  solid `#1d3148` som fallback. Spelbordsytor (`--felt`) är ett djupare, mörkare glas inuti. Bakom allt mjuka
+  ljusfläckar i bodyns bakgrund (bara CSS-gradienter), annars finns inget att sudda.
 - Typsnitt: Geist för UI-text, Geist Mono för poäng, lobbykod och betalningar. Självhostade via `@fontsource-variable`.
   Brödtext 16px / 1.5. `tabular-nums` globalt. Tusentalsavgränsare enligt `sv-SE`.
-- Färger (kontrast mot `--bg` / `--surface` / `--felt`, verifierat med skript):
-  - `--bg #0e1512`, `--surface #16201b`, `--felt #173a2c` (poängtavla, spelbordsytor)
-  - `--text #e8eee9` 15.7 / 14.2 / 10.6, `--text-muted #9aaaa1` 7.6 / 6.9 / 5.2
-  - `--positive #5cb88a` 7.7 / 6.9 / 5.2, `--negative #f07a6a` 6.8 / 6.1 / 4.6
-  - `--accent #e0594a` (enda accenten: primärknappar, länkar, fokusring) 5.0 / 4.5 / 3.4. Text i accent aldrig på `--felt`.
-  - `--on-accent #0e1512` (text på accentknappar) 5.0
-  - `--border #2b3a32` (dekorativa linjer), `--border-input #66796f` (fältramar) 4.0 / 3.6
+- Färger (kontrast mot `--bg` / glas ≈ `#283746` / `--felt` ≈ `#1b2734`, verifierat med skript):
+  - `--bg #152638` (bläckblått), `--surface` elfenben 7%, `--felt` bläck 40%
+  - `--text #e9e5d8` (havreelfenben) 12.2 / 9.7 / 12.0, `--text-muted #a5a8a5` 6.4 / 5.1 / 6.3
+  - `--positive #7fd1a3` 8.5 / 6.7 / 8.3, `--negative #ff8f80` 7.0 / 5.5 / 6.9
+  - `--accent #f18d46` (bärnstensorange, enda accenten, ca 10% av ytan: primärknappar, länkar, fokusring, "min" markering) 6.3 / 5.0 / 6.2
+  - `--on-accent #152638` (text på accentknappar) 6.3
+  - `--border` elfenben 14% (dekorativa linjer), `--border-input #7f8688` (fältramar) 4.2 / 3.3 / 4.1
 - Poäng visas alltid med tecken (+/−), inte bara med färg.
-- Form: 8px hörnradie överallt. Kontroller minst 44px höga. Fokus: 2px ring i `--accent`, offset 2px, tas aldrig bort.
+- Form: 14px hörnradie överallt. Kontroller minst 44px höga. Fokus: 2px ring i `--accent`, offset 2px, tas aldrig bort.
 - Etiketter ovanför fält, fel under fältet, aldrig placeholder som etikett.
-- Rörelse: bara hover/tryck (150–200ms). Avstängt vid `prefers-reduced-motion`. Inga animationsbibliotek, ingen Tailwind.
+- Rörelse: hover/tryck (150–200ms, knappar lyfts 1px och trycks ner), startvyn glider in en gång vid laddning.
+  Avstängt vid `prefers-reduced-motion`. Inga animationsbibliotek, ingen Tailwind.
 - Ikoner: inte valt ännu, välj när första ikonen behövs.
 - Färger och typsnitt definieras som CSS-variabler i `frontend/src/styles/theme.css`.
   Hårdkoda aldrig färger eller typsnitt i komponenter, använd variablerna.
