@@ -9,6 +9,8 @@ describe('shortName', () => {
     expect([...shortName('Christofferson')]).toHaveLength(12)
     expect(shortName('Åsa-Britt Öberg')).toBe('Åsa-Britt Ö…')
     expect(shortName('Wilhelmina Wikström')).toBe('Wilhelmina…') // inget mellanslag före …
+    expect(shortName('Christoffer', 8)).toBe('Christo…')
+    expect(shortName('Sigge', 8)).toBe('Sigge')
   })
 })
 

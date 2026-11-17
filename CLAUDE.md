@@ -1,11 +1,11 @@
 # Mahjong Score Tracker
 
 Webbapp för realtids-poängräkning i Mahjong. Fyra spelare går in från sina
-datorer (webbläsare), skapar/går med i en lobby via en 6-teckens kod och matar
+telefoner (webbläsare), skapar/går med i en lobby via en 6-teckens kod och matar
 in sina poäng rond för rond. All matematik sker i backend. Realtid via WebSockets.
 
 ## Stack
-- Frontend: React + TypeScript (Vite), desktop-first för pc-webbläsare (`frontend/`)
+- Frontend: React + TypeScript (Vite), mobile first: används mest på telefon, desktop ska fortsatt fungera (`frontend/`)
 - Backend: Python FastAPI + WebSockets (`backend/`)
 - Lagring: INGEN databas. Allt spelstate hålls i minnet i backend (se "Lagring i minnet").
 - Auth: gästinlogg via smeknamn, ingen e-post eller lösenord
@@ -52,11 +52,12 @@ Om spelreglerna är oklara: fråga mig, gissa inte.
   spelaren räknat själv, och räknar aldrig något. Betalningar, totaler och vindrotation räknas alltid i backend.
 - WebSocket-events broadcastas alltid till ALLA spelare i lobbyn.
 - API-rutter ligger under `/api` så att de inte krockar med frontendens sidor. `/ws` kontrollerar `Origin`.
-- Desktop (pc-webbläsare) är primärt. Mobilanpassning prioriteras inte, men undvik att göra layouten omöjlig att använda på smal skärm.
+- Mobile first: basstilarna skrivs för en telefon (från 320px), bredare skärmar läggs till med `@media (min-width: …)`.
+  Ingen sidledsscroll vid 320px, tryckytor minst 44px, knappar fullbredd på telefon. Desktop ska fortsatt fungera.
 - Poänglogiken (poäng, dubblingar, betalningar, vindrotation) ska ha enhetstester. Den är lätt att få fel.
 - Inga e-postadresser samlas in.
 - Hemligheter ska aldrig committas. Använd `.env`.
-- UI-steg: kör ui-ux-pro-max först, andra designskills får komplettera men aldrig ersätta den.
+- UI-steg: kör design-taste-frontend först (bara dess regler för layout, mobil och tryckytor; designvalen nedan gäller).
   Följ designvalen under "Design" här i filen. Välj inga nya paletter eller typsnitt på egen hand.
 - Skriv bara den kod ett steg kräver (ponytail). Poängmatematiken i backend ska ändå ha tester.
 

@@ -1,9 +1,10 @@
 // Placering i poängkurvan (bildpunkter). Inga poäng räknas här: talen kommer från score_history.
 
-// Namn längre än 12 tecken kortas i kurvans etiketter. Hela namnet står i tabellen och i SVG:ns title.
-export function shortName(name: string): string {
+// Namn längre än max tecken (12 på desktop, 8 på telefon) kortas i kurvans etiketter.
+// Hela namnet står i tabellen och i SVG:ns title.
+export function shortName(name: string, max = 12): string {
   const chars = [...name]
-  return chars.length > 12 ? chars.slice(0, 11).join('').trimEnd() + '…' : name
+  return chars.length > max ? chars.slice(0, max - 1).join('').trimEnd() + '…' : name
 }
 
 // Vilka ronder som får ett tal på x-axeln: högst max + 1 stycken, alltid 0 och den sista.

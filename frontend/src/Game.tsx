@@ -1,4 +1,4 @@
-import { useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from 'react'
+import { useEffect, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from 'react'
 import { Navigate, useNavigate, useOutletContext, useParams } from 'react-router-dom'
 
 import {
@@ -395,7 +395,7 @@ function ResultView({ result, players, meId, onNext }: ResultProps) {
         {winner ? `${winner.nickname} vann med Mahjong.` : 'Oavgjort. Inga poäng, vindarna står kvar.'}
       </p>
       <div className="table-scroll">
-        <table className="result-table">
+        <table className="result-table stack">
           <thead>
             <tr>
               <th scope="col">Spelare</th>
@@ -419,13 +419,17 @@ function ResultView({ result, players, meId, onNext }: ResultProps) {
                     {p.id === meId && <span className="muted"> (du)</span>}
                     {p === winner && <span className="tag">Mahjong</span>}
                   </th>
-                  <td>{WIND_NAME[pay.wind]}</td>
-                  <td className="num mono">{draw ? '–' : dash(pay.base_points)}</td>
-                  <td className="num mono">{draw ? '–' : dash(pay.doublings)}</td>
-                  <td className="num mono">{draw ? '–' : num(pay.final_points)}</td>
-                  <td className={`num mono big ${tone(pay.payment_delta)}`}>{signed(pay.payment_delta)}</td>
-                  <td className={`num mono big ${tone(total)}`}>{signed(total)}</td>
-                  <td>{WIND_NAME[result.next_round_winds[p.id]]}</td>
+                  <td data-label="Vind i ronden">{WIND_NAME[pay.wind]}</td>
+                  <td className="num mono" data-label="Baspoäng">{draw ? '–' : dash(pay.base_points)}</td>
+                  <td className="num mono" data-label="Dubblingar">{draw ? '–' : dash(pay.doublings)}</td>
+                  <td className="num mono" data-label="Slutpoäng">{draw ? '–' : num(pay.final_points)}</td>
+                  <td className={`num mono big ${tone(pay.payment_delta)}`} data-label="Betalning">
+                    {signed(pay.payment_delta)}
+                  </td>
+                  <td className={`num mono big ${tone(total)}`} data-label="Ny total">
+                    {signed(total)}
+                  </td>
+                  <td data-label="Nästa vind">{WIND_NAME[result.next_round_winds[p.id]]}</td>
                 </tr>
               )
             })}
@@ -483,7 +487,7 @@ function Standings({ players, meId, round, lastRoundNumber, showingResult }: Sta
               {p.nickname}
               {p.id === meId && <span className="muted"> (du)</span>}
             </span>
-            <span className="muted">
+            <span className="muted standing-tags">
               {p.wind === 'east' ? <span className="tag">Öst · dubbelt</span> : p.wind && WIND_NAME[p.wind]}
               {p.total_score === leader && <span className="tag">Leder</span>}
             </span>
@@ -497,7 +501,10 @@ function Standings({ players, meId, round, lastRoundNumber, showingResult }: Sta
 }
 
 // Kurvans mått i viewBox-enheter. Etiketterna är i Geist Mono, så bredden är exakt tecken × CHAR.
-const W = 800
+// På telefon är viewBox hälften så bred, så att 16 enheter text blir ungefär 13px i stället för 7px.
+const WIDE = 800
+const NARROW = 400
+const NARROW_QUERY = '(max-width: 599px)'
 const H = 320
 const TOP = 16
 const BOTTOM = H - 48
@@ -510,6 +517,8 @@ type ChartProps = { history: ScoreHistory; players: Player[]; meId: string; open
 // Total per spelare efter varje rond. Talen kommer från servern (score_history), här räknas bara placering.
 // Öppen i resultat- och väntläget, stängd under inmatning. Spelaren kan öppna och stänga den själv däremellan.
 function ScoreChart({ history, players, meId, open }: ChartProps) {
+  const narrow = useMedia(NARROW_QUERY)
+  const W = narrow ? NARROW : WIDE
   const series = players.map((p) => history[p.id] ?? [0])
   const last = series[0].length - 1
   if (last < 1) return null // ingen avslutad rond än
@@ -517,7 +526,12 @@ function ScoreChart({ history, players, meId, open }: ChartProps) {
   const values = series.flat()
   const y = yScale(values, TOP, BOTTOM)
   const ticks = yTicks(values, y, FONT * 1.25)
-  const labels = players.map((p, i) => `${shortName(p.nickname)}${p.id === meId ? ' (du)' : ''} ${signed(series[i][last])}`)
+  // Smal skärm: bara namnet. Min linje syns ändå (tjockare, fet etikett) och totalerna står i ställningen.
+  const labels = players.map((p, i) =>
+    narrow
+      ? shortName(p.nickname, 8)
+      : `${shortName(p.nickname)}${p.id === meId ? ' (du)' : ''} ${signed(series[i][last])}`,
+  )
   // Marginalerna räknas från den längsta texten, så att inget klipps.
   const left = Math.max(4, ...ticks.map((t) => signed(t).length)) * CHAR + 16
   const right = Math.max(...labels.map((l) => l.length)) * CHAR + 20
@@ -599,6 +613,19 @@ function ScoreChart({ history, players, meId, open }: ChartProps) {
       </details>
     </details>
   )
+}
+
+// Följer en media query, t.ex. smal skärm. Ingen layoutmatematik: bara vilken viewBox kurvan får.
+function useMedia(query: string): boolean {
+  const [match, setMatch] = useState(() => window.matchMedia(query).matches)
+  useEffect(() => {
+    const mq = window.matchMedia(query)
+    const update = () => setMatch(mq.matches)
+    update()
+    mq.addEventListener('change', update)
+    return () => mq.removeEventListener('change', update)
+  }, [query])
+  return match
 }
 
 // Markör per spelare (sätesordning): cirkel, fyrkant, triangel, romb.

@@ -37,6 +37,7 @@
 body {
   margin: 0;
   min-height: 100vh;
+  min-height: 100dvh;
   background:
     radial-gradient(55vw 45vh at 92% -8%, rgb(241 141 70 / 0.2), transparent 70%),
     radial-gradient(45vw 50vh at -8% 105%, rgb(var(--ivory-rgb) / 0.08), transparent 70%),
@@ -50,10 +51,17 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+/* Mobile först: basstilarna gäller en telefon (från 320px), bredare skärmar läggs till med min-width. */
 main {
   max-width: 1200px;
   margin: 0 auto;
-  padding: 32px 24px;
+  padding: 24px 16px;
+}
+
+@media (min-width: 600px) {
+  main {
+    padding: 32px 24px;
+  }
 }
 
 a {
@@ -123,9 +131,11 @@ button {
     box-shadow 150ms var(--ease);
 }
 
-/* Steg vid hover, tryck vid klick. */
-button:hover:not(:disabled) {
-  transform: translateY(-1px);
+/* Steg vid hover (bara med muspekare, så att ett tryck inte lämnar knappen lyft), tryck vid klick. */
+@media (hover: hover) {
+  button:hover:not(:disabled) {
+    transform: translateY(-1px);
+  }
 }
 
 button:active:not(:disabled) {
@@ -194,8 +204,14 @@ dialog {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  padding: 24px;
+  padding: 16px;
   border-radius: var(--radius);
+}
+
+@media (min-width: 600px) {
+  .card {
+    padding: 24px;
+  }
 }
 
 /* Knappen längst ner så att korten linjerar. */
@@ -296,6 +312,7 @@ h1 {
   justify-content: space-between;
   gap: 16px;
   align-items: center;
+  flex-wrap: wrap;
   min-height: var(--control-height);
   padding: 8px 16px;
   background: var(--surface);
@@ -325,7 +342,7 @@ h1 {
 
 .winds {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
   margin: 0;
   padding: 16px;
@@ -397,7 +414,13 @@ h1 {
   box-shadow: inset 0 0 0 1px var(--accent);
 }
 
-/* Spelvyn: desktop först, två kolumner. */
+@media (min-width: 600px) {
+  .winds {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+/* Spelvyn: en kolumn på telefon, två kolumner på desktop. */
 .game {
   max-width: none;
 }
@@ -410,22 +433,17 @@ h1 {
 
 .score-grid {
   display: grid;
-  grid-template-columns: 2fr 1fr;
   gap: 16px;
   align-items: start;
 }
 
-.score-grid > .card:first-child {
-  grid-row: span 2;
-}
-
-@media (max-width: 900px) {
+@media (min-width: 900px) {
   .score-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: 2fr 1fr;
   }
 
   .score-grid > .card:first-child {
-    grid-row: auto;
+    grid-row: span 2;
   }
 }
 
@@ -444,7 +462,7 @@ h1 {
 }
 
 .choice {
-  grid-template-columns: repeat(2, auto);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .choice legend {
@@ -513,9 +531,17 @@ h1 {
   align-self: flex-start;
 }
 
+/* Knapparna fullbredd och staplade på telefon, på rad från 600px. */
 .actions {
   display: flex;
+  flex-direction: column;
   gap: 12px;
+}
+
+@media (min-width: 600px) {
+  .actions {
+    flex-direction: row;
+  }
 }
 
 .positive {
@@ -537,21 +563,34 @@ h1 {
 
 .standings ol {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
+@media (min-width: 900px) {
+  .standings ol {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
 .standings li {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  padding: 12px 16px;
+  min-width: 0;
+  padding: 12px;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
+}
+
+@media (min-width: 600px) {
+  .standings li {
+    padding: 12px 16px;
+  }
 }
 
 .standings li.mine {
@@ -568,24 +607,34 @@ h1 {
 .standing-name {
   font-size: 1.125rem;
   font-weight: 600;
+  overflow-wrap: anywhere;
 }
 
-.standing-total {
-  font-size: 2.5rem;
-  line-height: 1.2;
+/* Taggarna (Öst · dubbelt, Leder) radbryts hela, aldrig mitt i ordet. */
+.standing-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
 }
 
-.standings .tag:first-child {
+.standing-tags .tag {
   margin-left: 0;
+}
+
+/* Krymper med skärmen så att "+12 480" ryms på en rad även vid 320px. */
+.standing-total {
+  font-size: clamp(1.25rem, 6.5vw, 1.75rem);
+  line-height: 1.2;
+  white-space: nowrap;
 }
 
 .small {
   font-size: 0.875rem;
 }
 
-@media (max-width: 600px) {
+@media (min-width: 600px) {
   .standing-total {
-    font-size: 2rem;
+    font-size: 2.5rem;
   }
 }
 
@@ -618,10 +667,16 @@ h1 {
   margin: 0;
 }
 
+/* Etikett ovanför värdet på telefon, bredvid från 600px. */
 .summary div {
   display: grid;
-  grid-template-columns: minmax(160px, 1fr) 2fr;
-  gap: 16px;
+  gap: 0 16px;
+}
+
+@media (min-width: 600px) {
+  .summary div {
+    grid-template-columns: minmax(160px, 1fr) 2fr;
+  }
 }
 
 .summary dt,
@@ -634,15 +689,32 @@ h1 {
   margin: 0;
 }
 
+/* En rad per tal på telefon (etikett vänster, tal höger), tre kolumner från 600px. */
 .calc {
-  grid-template-columns: repeat(3, 1fr);
   padding: 16px;
   background: var(--felt);
   border-radius: var(--radius);
 }
 
+.calc div {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 16px;
+}
+
 .calc dd {
   font-size: 1.5rem;
+}
+
+@media (min-width: 600px) {
+  .calc {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .calc div {
+    display: block;
+  }
 }
 
 /* Rondresultatet: tabell på spelbordsytan, betalning och total läsbara på avstånd. */
@@ -692,8 +764,66 @@ h1 {
   font-size: 2rem;
 }
 
+/* Rondresultatet på telefon: ett kort per spelare i stället för åtta kolumner. Etiketten kommer från
+   data-label, så markupen är densamma som tabellen från 720px. */
+@media (max-width: 719px) {
+  .stack thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+  }
+
+  .stack tbody tr:first-child {
+    border-top: 0;
+  }
+
+  .stack tbody tr {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px 16px;
+    padding: 16px 0;
+  }
+
+  /* Ordning i kortet: namn, betalning och ny total först, sedan vindarna, sist uträkningen. */
+  .stack tbody th {
+    order: -3;
+    grid-column: 1 / -1;
+    padding: 0;
+    font-size: 1.125rem;
+    white-space: normal;
+  }
+
+  .stack td,
+  .stack td.num {
+    display: flex;
+    flex-direction: column;
+    padding: 0;
+    text-align: left;
+    white-space: normal;
+  }
+
+  .stack td.big {
+    order: -2;
+    font-size: 1.5rem;
+  }
+
+  .stack td:not(.num) {
+    order: -1;
+  }
+
+  .stack td::before {
+    content: attr(data-label);
+    color: var(--text-muted);
+    font-family: var(--font-sans);
+    font-size: 0.875rem;
+  }
+}
+
 .tag {
   margin-left: 8px;
+  white-space: nowrap;
   padding: 2px 8px;
   border: 1px solid var(--border-input);
   border-radius: var(--radius);
@@ -728,12 +858,11 @@ h1 {
   overflow-x: auto;
 }
 
-/* 1:1 på desktop (text 16px), krymper till 640px och scrollar sedan i sidled. */
+/* 1:1 på desktop (text 16px). Telefonen får en smalare viewBox (se ScoreChart), så texten stannar läsbar. */
 .chart-svg {
   display: block;
   width: 100%;
   max-width: 800px;
-  min-width: 640px;
 }
 
 .chart-svg text {
@@ -784,7 +913,7 @@ h1 {
 
 /* Bekräftelsen för Avsluta spel. Native <dialog>, modal via showModal(). */
 dialog {
-  max-width: 480px;
+  max-width: min(480px, calc(100vw - 32px));
   padding: 24px;
   color: var(--text);
   border-radius: var(--radius);
